@@ -171,7 +171,7 @@ function createRotatedMarimekkoChart(csvData) {
             segments: vegetationData.map(d => ({
                 name: d.name, 
                 totalPercent: d.totalPercent,
-                totalHa: d.totalHa, // Include this in the data structure
+                totalHa: d.totalHa,
                 color: d.color
             }))
         },
@@ -224,13 +224,18 @@ function createRotatedMarimekkoChart(csvData) {
     ];
 
     // Process data to calculate cumulative positions
-    const totalHeight = d3.sum(data, d => d.total);
+    const totalHeight = d3.sum(data, d => d.total) + 60;
     let yPosition = 0;
-    
-    data.forEach(category => {
+
+    data.forEach((category, index) => {
         // Calculate cumulative Y positions
         category.y = yPosition;
         yPosition += category.total;
+        
+        // Add 60px of space after the "Total" row 
+        if (index === 0) {
+            yPosition += 60;
+        }
         
         // Calculate percentage width for each segment
         let xPosition = 0;
@@ -377,14 +382,61 @@ function createRotatedMarimekkoChart(csvData) {
     data.forEach(category => {
         svg.append('text')
             .attr('y', yScale(category.y) + yScale(category.total) / 2)
-            .attr('x', -10) // Position to the left of the chart
-            .attr('text-anchor', 'end')
+            .attr('x', -80) // Position further to the left for left alignment
+            .attr('text-anchor', 'start') // Left justify (changed from 'end')
             .attr('dominant-baseline', 'middle')
             .style('font-size', '12px')
             .style('font-weight', 'bold')
             .text(category.category);
     });
     
+    // Add horizontal lines
+    // Get positions for the rows
+    const highRowTop = yScale(data[1].y);  // Top of High row
+    const highRowBottom = yScale(data[1].y + data[1].total);  // Bottom of High row
+    const mediumRowBottom = yScale(data[2].y + data[2].total);  // Bottom of Medium row
+    const lowRowBottom = yScale(data[3].y + data[3].total);  // Bottom of Low row
+
+    // Draw the 4 horizontal lines
+    const lineStartX = -100;  // Start lines from left of the labels
+    const lineEndX = width;   // End at the right edge of visualization
+
+    // Line 1: Above High row
+    svg.append('line')
+        .attr('x1', lineStartX)
+        .attr('y1', highRowTop)
+        .attr('x2', lineEndX)
+        .attr('y2', highRowTop)
+        .attr('stroke', 'black')
+        .attr('stroke-width', 1);
+
+    // Line 2: Below High row
+    svg.append('line')
+        .attr('x1', lineStartX)
+        .attr('y1', highRowBottom)
+        .attr('x2', lineEndX)
+        .attr('y2', highRowBottom)
+        .attr('stroke', 'black')
+        .attr('stroke-width', 1);
+
+    // Line 3: Below Medium row
+    svg.append('line')
+        .attr('x1', lineStartX)
+        .attr('y1', mediumRowBottom)
+        .attr('x2', lineEndX)
+        .attr('y2', mediumRowBottom)
+        .attr('stroke', 'black')
+        .attr('stroke-width', 1);
+
+    // Line 4: Below Low row
+    svg.append('line')
+        .attr('x1', lineStartX)
+        .attr('y1', lowRowBottom)
+        .attr('x2', lineEndX)
+        .attr('y2', lowRowBottom)
+        .attr('stroke', 'black')
+        .attr('stroke-width', 1);
+
     // Add stacked legend at the bottom with 4 items per column
     const legendItems = vegetationData.map(d => d.name);
     const itemsPerColumn = 4;
