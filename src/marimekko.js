@@ -380,31 +380,98 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 .attr('stroke-width', 1);
         } else {
             // For High, Medium, and Low rows with sub-segments
-            category.segments.forEach(segment => {
-                // Calculate the starting x position for this vegetation type
-                const segmentWidth = (segment.x1 - segment.x0) * width;
+            if (mode === 'condensed') {
+                // CONDENSED VIEW: Collect active segments and position them side by side
                 
-                if (mode === 'condensed') {
-                    // CONDENSED VIEW: Only show opacity 1.0 segments
-                    // Find the subsegment with opacity 1.0
+                // First collect all active (opacity 1.0) segments for this row
+                const activeSegments = [];
+                
+                category.segments.forEach(segment => {
+                    // Find the subsegment with opacity 1.0 for this vegetation type
                     const activeSubSegment = segment.subSegments.find(s => s.opacity === 1.0);
                     
                     if (activeSubSegment) {
-                        // Calculate proportional width based on percent
+                        // Calculate the exact same width as in expanded view
+                        const segmentWidth = (segment.x1 - segment.x0) * width;
                         const subWidth = (activeSubSegment.percent / d3.sum(segment.subSegments, d => d.percent)) * segmentWidth;
                         
-                        svg.append('rect')
-                            .attr('y', yScale(category.y))
-                            .attr('x', segment.x0 * width)
-                            .attr('height', yScale(category.total))
-                            .attr('width', subWidth)
-                            .attr('fill', activeSubSegment.color)
-                            .attr('stroke', 'white')
-                            .attr('stroke-width', 1)
-                            .on('mouseover', function(event) {
+                        // Store segment info for drawing
+                        activeSegments.push({
+                            name: segment.name,
+                            width: subWidth,
+                            color: activeSubSegment.color,
+                            percent: activeSubSegment.percent,
+                            hectares: activeSubSegment.hectares
+                        });
+                    }
+                });
+                
+                // Now draw segments side by side with no gaps
+                let xPosition = 0;
+                
+                // For condensed view:
+                activeSegments.forEach(segment => {
+                    svg.append('rect')
+                        .attr('y', yScale(category.y))
+                        .attr('x', xPosition)
+                        .attr('height', yScale(category.total))
+                        .attr('width', segment.width)
+                        .attr('fill', segment.color)
+                        .attr('stroke', 'white')
+                        .attr('stroke-width', 1)
+                        .on('mouseover', function(event) {
+                            // Use opacity change instead of stroke highlight
+                            d3.select(this)
+                                .attr('opacity', 0.8);
+                            
+                            const [mouseX, mouseY] = d3.pointer(event);
+                            let severity = category.category.toLowerCase();
+                            
+                            showTooltip(
+                                mouseX, 
+                                mouseY, 
+                                segment.name, 
+                                segment.percent,
+                                segment.hectares,
+                                severity
+                            );
+                        })
+                        .on('mouseout', function() {
+                            // Reset opacity
+                            d3.select(this)
+                                .attr('opacity', 1);
+                            
+                            d3.select('#tooltip-container').remove();
+                        });
+                    
+                    // Update x-position for next segment
+                    xPosition += segment.width;
+                });
+            } else {
+                // EXPANDED VIEW: Show all subsegments (original code)
+                // Calculate sub-segment widths proportional to their percentages within the total
+                const totalSubPercent = d3.sum(segment.subSegments, d => d.percent);
+                let xOffset = segment.x0 * width;
+                
+                // Draw each sub-segment
+                segment.subSegments.forEach(subSegment => {
+                    // Calculate width for this sub-segment
+                    const subWidth = (subSegment.percent / totalSubPercent) * segmentWidth;
+                    
+                    svg.append('rect')
+                        .attr('y', yScale(category.y))
+                        .attr('x', xOffset)
+                        .attr('height', yScale(category.total))
+                        .attr('width', subWidth)
+                        .attr('fill', subSegment.color)
+                        .attr('opacity', subSegment.opacity)
+                        .attr('stroke', 'white')
+                        .attr('stroke-width', 1)
+                        .on('mouseover', function(event) {
+                            // Only apply opacity change and show tooltip if opacity is 1.0
+                            if (subSegment.opacity === 1.0) {
                                 d3.select(this)
-                                    .attr('stroke', 'black')
-                                    .attr('stroke-width', 2);
+                                    .attr('opacity', 0.8); // Change to 0.8 opacity instead of stroke
                                 
                                 const [mouseX, mouseY] = d3.pointer(event);
                                 let severity = category.category.toLowerCase();
@@ -413,77 +480,26 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                                     mouseX, 
                                     mouseY, 
                                     segment.name, 
-                                    activeSubSegment.percent,
-                                    activeSubSegment.hectares,
+                                    subSegment.percent,
+                                    subSegment.hectares,
                                     severity
                                 );
-                            })
-                            .on('mouseout', function() {
+                            }
+                        })
+                        .on('mouseout', function() {
+                            // Reset to original opacity
+                            if (subSegment.opacity === 1.0) {
                                 d3.select(this)
-                                    .attr('stroke', 'white')
-                                    .attr('stroke-width', 1);
-                                
-                                d3.select('#tooltip-container').remove();
-                            });
-                    }
-                } else {
-                    // EXPANDED VIEW: Show all subsegments (original code)
-                    // Calculate sub-segment widths proportional to their percentages within the total
-                    const totalSubPercent = d3.sum(segment.subSegments, d => d.percent);
-                    let xOffset = segment.x0 * width;
+                                    .attr('opacity', 1.0);
+                            }
+                            
+                            d3.select('#tooltip-container').remove();
+                        });
                     
-                    // Draw each sub-segment
-                    segment.subSegments.forEach(subSegment => {
-                        // Calculate width for this sub-segment
-                        const subWidth = (subSegment.percent / totalSubPercent) * segmentWidth;
-                        
-                        svg.append('rect')
-                            .attr('y', yScale(category.y))
-                            .attr('x', xOffset)
-                            .attr('height', yScale(category.total))
-                            .attr('width', subWidth)
-                            .attr('fill', subSegment.color)
-                            .attr('opacity', subSegment.opacity)
-                            .attr('stroke', 'white')
-                            .attr('stroke-width', 1)
-                            .on('mouseover', function(event) {
-                                // Only apply stroke highlight and show tooltip if opacity is 1.0
-                                if (subSegment.opacity === 1.0) {
-                                    // Apply stroke highlight only to segments with opacity 1.0
-                                    d3.select(this)
-                                        .attr('stroke', 'black')
-                                        .attr('stroke-width', 2);
-                                    
-                                    // Get mouse position for better tooltip placement
-                                    const [mouseX, mouseY] = d3.pointer(event);
-                                    
-                                    // Simply use the category name to determine severity
-                                    let severity = category.category.toLowerCase(); // "High" -> "high", etc.
-                                    
-                                    // Show tooltip with custom information
-                                    showTooltip(
-                                        mouseX, 
-                                        mouseY, 
-                                        segment.name, 
-                                        subSegment.percent,
-                                        subSegment.hectares,
-                                        severity
-                                    );
-                                }
-                            })
-                            .on('mouseout', function() {
-                                d3.select(this)
-                                    .attr('stroke', 'white')  // Reset to white on mouseout
-                                    .attr('stroke-width', 1);
-                                
-                                d3.select('#tooltip-container').remove();
-                            });
-                        
-                        // Update xOffset for the next sub-segment
-                        xOffset += subWidth;
-                    });
-                }
-            });
+                    // Update xOffset for the next sub-segment
+                    xOffset += subWidth;
+                });
+            }
         }
     });
 
