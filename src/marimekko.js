@@ -8,15 +8,47 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('D3 version:', d3.version);
     
+    // Track current view mode
+    let viewMode = 'condensed'; // Start with condensed view
+    
+    // Create toggle button
+    const container = d3.select('#visualization-container');
+    const toggleBtn = container.append('div')
+        .attr('class', 'toggle-container')
+        .style('position', 'absolute')
+        .style('top', '10px')
+        .style('right', '20px')
+        .append('button')
+        .attr('id', 'view-toggle')
+        .text('Show Expanded View')
+        .style('padding', '8px 12px')
+        .style('cursor', 'pointer');
+    
     // Load CSV data and initialize chart
     d3.csv("../data/vegetation_data.csv").then(function(csvData) {
-        createRotatedMarimekkoChart(csvData);
+        // Initial chart creation with condensed view
+        createRotatedMarimekkoChart(csvData, viewMode);
+        
+        // Add toggle functionality
+        toggleBtn.on('click', function() {
+            // Toggle view mode
+            viewMode = viewMode === 'condensed' ? 'expanded' : 'condensed';
+            
+            // Update button text
+            d3.select(this).text(viewMode === 'condensed' ? 'Show Expanded View' : 'Show Condensed View');
+            
+            // Clear existing visualization
+            container.select('svg').remove();
+            
+            // Redraw with new mode
+            createRotatedMarimekkoChart(csvData, viewMode);
+        });
     }).catch(function(error) {
         console.error("Error loading the CSV file:", error);
     });
 });
 
-function createRotatedMarimekkoChart(csvData) {
+function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
     function showTooltip(x, y, name, percent, hectares, severity) {
     // Remove any existing tooltips
     d3.select('#tooltip-container').remove();
@@ -45,7 +77,7 @@ function createRotatedMarimekkoChart(csvData) {
                 .attr('y', yPos)
                 .append('tspan')
                 .attr('x', xPos);
-                
+
             while (word = words.pop()) {
                 line.push(word);
                 tspan.text(line.join(' '));
@@ -90,8 +122,8 @@ function createRotatedMarimekkoChart(csvData) {
 
         wrapText(description, 300, 15, percentYPosition + 25, 'tooltip-description');
         
-        // Only add hectare information if it's provided and we're in the Total row
-        if (hectares !== undefined && severity === "total") {
+        // Only add hectare information if it's provided (remove Total row restriction)
+        if (hectares !== undefined) {
             // Add hectare value with same styling as percentage
             tooltip.append('text')
                 .attr('class', 'tooltip-percentage')
@@ -104,7 +136,7 @@ function createRotatedMarimekkoChart(csvData) {
                 .attr('class', 'tooltip-description')
                 .attr('x', 15)
                 .attr('y', percentYPosition + 85)
-                .text("total hectares burned");
+                .text("hectares burned");
         }
         
         // Get dimensions for positioning
@@ -160,6 +192,9 @@ function createRotatedMarimekkoChart(csvData) {
         medPerc: +d.medium_percent,
         lowPerc: +d.low_percent,
         totalHa: +d.total_ha,
+        high_ha: +d.high_ha,    // Add this line
+        medium_ha: +d.medium_ha, // Add this line
+        low_ha: +d.low_ha,      // Add this line
         color: d.color
     }));
     
@@ -179,14 +214,13 @@ function createRotatedMarimekkoChart(csvData) {
             category: "High",
             total: 100,
             // Each vegetation type is represented by its totalPercent width
-            // but internally divided into 3 segments with High at full opacity
             segments: vegetationData.map(d => ({
                 name: d.name,
                 totalPercent: d.totalPercent,
                 subSegments: [
-                    { name: `${d.name} (Low)`, percent: d.lowPerc, color: d.color, opacity: 0.3 },
-                    { name: `${d.name} (Medium)`, percent: d.medPerc, color: d.color, opacity: 0.3 },
-                    { name: `${d.name} (High)`, percent: d.highPerc, color: d.color, opacity: 1.0 }
+                    { name: `${d.name} (Low)`, percent: d.lowPerc, hectares: d.low_ha, color: d.color, opacity: 0.3 },
+                    { name: `${d.name} (Medium)`, percent: d.medPerc, hectares: d.medium_ha, color: d.color, opacity: 0.3 },
+                    { name: `${d.name} (High)`, percent: d.highPerc, hectares: d.high_ha, color: d.color, opacity: 1.0 }
                 ],
                 color: d.color
             }))
@@ -194,14 +228,13 @@ function createRotatedMarimekkoChart(csvData) {
         {
             category: "Medium",
             total: 100,
-            // Medium row with Medium segment at full opacity
             segments: vegetationData.map(d => ({
                 name: d.name,
                 totalPercent: d.totalPercent,
                 subSegments: [
-                    { name: `${d.name} (Low)`, percent: d.lowPerc, color: d.color, opacity: 0.3 },
-                    { name: `${d.name} (Medium)`, percent: d.medPerc, color: d.color, opacity: 1.0 },
-                    { name: `${d.name} (High)`, percent: d.highPerc, color: d.color, opacity: 0.3 }
+                    { name: `${d.name} (Low)`, percent: d.lowPerc, hectares: d.low_ha, color: d.color, opacity: 0.3 },
+                    { name: `${d.name} (Medium)`, percent: d.medPerc, hectares: d.medium_ha, color: d.color, opacity: 1.0 },
+                    { name: `${d.name} (High)`, percent: d.highPerc, hectares: d.high_ha, color: d.color, opacity: 0.3 }
                 ],
                 color: d.color
             }))
@@ -209,14 +242,13 @@ function createRotatedMarimekkoChart(csvData) {
         {
             category: "Low",
             total: 100,
-            // Low row with Low segment at full opacity
             segments: vegetationData.map(d => ({
                 name: d.name,
                 totalPercent: d.totalPercent,
                 subSegments: [
-                    { name: `${d.name} (Low)`, percent: d.lowPerc, color: d.color, opacity: 1.0 },
-                    { name: `${d.name} (Medium)`, percent: d.medPerc, color: d.color, opacity: 0.3 },
-                    { name: `${d.name} (High)`, percent: d.highPerc, color: d.color, opacity: 0.3 }
+                    { name: `${d.name} (Low)`, percent: d.lowPerc, hectares: d.low_ha, color: d.color, opacity: 1.0 },
+                    { name: `${d.name} (Medium)`, percent: d.medPerc, hectares: d.medium_ha, color: d.color, opacity: 0.3 },
+                    { name: `${d.name} (High)`, percent: d.highPerc, hectares: d.high_ha, color: d.color, opacity: 0.3 }
                 ],
                 color: d.color
             }))
@@ -258,11 +290,6 @@ function createRotatedMarimekkoChart(csvData) {
         }
     });
 
-        // Debug data structure after processing
-    console.log("Data structure after processing:", JSON.stringify(data, (key, value) => 
-    typeof value === 'number' && isNaN(value) ? "NaN-VALUE" : value
-    ));
-
 
     // Create SVG
     const svg = container.append('svg')
@@ -279,7 +306,7 @@ function createRotatedMarimekkoChart(csvData) {
     // Draw rectangles for each segment in each category
     data.forEach(category => {
         if (category.category === "Total") {
-            // Regular drawing for Total row
+            // First, draw all rectangles WITHOUT strokes
             category.segments.forEach(segment => {
                 svg.append('rect')
                     .attr('y', yScale(category.y))
@@ -287,19 +314,13 @@ function createRotatedMarimekkoChart(csvData) {
                     .attr('height', yScale(category.total))
                     .attr('width', (segment.x1 - segment.x0) * width)
                     .attr('fill', segment.color)
-                    .attr('stroke', 'white')
-                    .attr('stroke-width', 1)
+                    .attr('stroke', 'none') // No stroke on the rectangles
                     .on('mouseover', function(event) {
                         d3.select(this)
-                            .attr('opacity', 0.8)
-                            .attr('stroke', 'black')  // Changed from white to black
-                            .attr('stroke-width', 2)
-                            .attr('stroke-opacity', 1);
+                            .attr('opacity', 0.8);
                         
-                        // Get mouse position for better tooltip placement
                         const [mouseX, mouseY] = d3.pointer(event);
                         
-                        // Show tooltip with custom information
                         showTooltip(
                             mouseX, 
                             mouseY, 
@@ -311,69 +332,157 @@ function createRotatedMarimekkoChart(csvData) {
                     })
                     .on('mouseout', function() {
                         d3.select(this)
-                            .attr('opacity', 1)
-                            .attr('stroke', 'white')  // Reset to white on mouseout
-                            .attr('stroke-width', 1);
+                            .attr('opacity', 1);
                         
                         d3.select('#tooltip-container').remove();
                     });
             });
+            
+            // Then, draw grid lines separately on top of all rectangles
+            category.segments.forEach(segment => {
+                // Left line of segment
+                svg.append('line')
+                    .attr('x1', segment.x0 * width)
+                    .attr('y1', yScale(category.y))
+                    .attr('x2', segment.x0 * width)
+                    .attr('y2', yScale(category.y + category.total))
+                    .attr('stroke', 'white')
+                    .attr('stroke-width', 1);
+                    
+                // Right line of segment (only for the last segment)
+                if (segment === category.segments[category.segments.length - 1]) {
+                    svg.append('line')
+                        .attr('x1', segment.x1 * width)
+                        .attr('y1', yScale(category.y))
+                        .attr('x2', segment.x1 * width)
+                        .attr('y2', yScale(category.y + category.total))
+                        .attr('stroke', 'white')
+                        .attr('stroke-width', 1);
+                }
+            });
+            
+            // Top horizontal line for the entire row
+            svg.append('line')
+                .attr('x1', 0)
+                .attr('y1', yScale(category.y))
+                .attr('x2', width)
+                .attr('y2', yScale(category.y))
+                .attr('stroke', 'white')
+                .attr('stroke-width', 1);
+                
+            // Bottom horizontal line for the entire row
+            svg.append('line')
+                .attr('x1', 0)
+                .attr('y1', yScale(category.y + category.total))
+                .attr('x2', width)
+                .attr('y2', yScale(category.y + category.total))
+                .attr('stroke', 'white')
+                .attr('stroke-width', 1);
         } else {
             // For High, Medium, and Low rows with sub-segments
             category.segments.forEach(segment => {
                 // Calculate the starting x position for this vegetation type
                 const segmentWidth = (segment.x1 - segment.x0) * width;
                 
-                // Calculate sub-segment widths proportional to their percentages within the total
-                const totalSubPercent = d3.sum(segment.subSegments, d => d.percent);
-                let xOffset = segment.x0 * width;
-                
-                // Draw each sub-segment
-                segment.subSegments.forEach(subSegment => {
-                    // Calculate width for this sub-segment
-                    const subWidth = (subSegment.percent / totalSubPercent) * segmentWidth;
+                if (mode === 'condensed') {
+                    // CONDENSED VIEW: Only show opacity 1.0 segments
+                    // Find the subsegment with opacity 1.0
+                    const activeSubSegment = segment.subSegments.find(s => s.opacity === 1.0);
                     
-                    svg.append('rect')
-                        .attr('y', yScale(category.y))
-                        .attr('x', xOffset)
-                        .attr('height', yScale(category.total))
-                        .attr('width', subWidth)
-                        .attr('fill', subSegment.color)
-                        .attr('opacity', subSegment.opacity)
-                        .attr('stroke', 'white')
-                        .attr('stroke-width', 1)
-                        .on('mouseover', function(event) {
-                            d3.select(this)
-                                .attr('stroke', 'black')  // Changed from white to black
-                                .attr('stroke-width', 2);
-                            
-                            // Get mouse position for better tooltip placement
-                            const [mouseX, mouseY] = d3.pointer(event);
-                            
-                            // Simply use the category name to determine severity
-                            let severity = category.category.toLowerCase(); // "High" -> "high", etc.
-                            
-                            // Show tooltip with custom information
-                            showTooltip(
-                                mouseX, 
-                                mouseY, 
-                                segment.name, 
-                                subSegment.percent,
-                                null,
-                                severity
-                            );
-                        })
-                        .on('mouseout', function() {
-                            d3.select(this)
-                                .attr('stroke', 'white')  // Reset to white on mouseout
-                                .attr('stroke-width', 1);
-                            
-                            d3.select('#tooltip-container').remove();
-                        });
+                    if (activeSubSegment) {
+                        // Calculate proportional width based on percent
+                        const subWidth = (activeSubSegment.percent / d3.sum(segment.subSegments, d => d.percent)) * segmentWidth;
+                        
+                        svg.append('rect')
+                            .attr('y', yScale(category.y))
+                            .attr('x', segment.x0 * width)
+                            .attr('height', yScale(category.total))
+                            .attr('width', subWidth)
+                            .attr('fill', activeSubSegment.color)
+                            .attr('stroke', 'white')
+                            .attr('stroke-width', 1)
+                            .on('mouseover', function(event) {
+                                d3.select(this)
+                                    .attr('stroke', 'black')
+                                    .attr('stroke-width', 2);
+                                
+                                const [mouseX, mouseY] = d3.pointer(event);
+                                let severity = category.category.toLowerCase();
+                                
+                                showTooltip(
+                                    mouseX, 
+                                    mouseY, 
+                                    segment.name, 
+                                    activeSubSegment.percent,
+                                    activeSubSegment.hectares,
+                                    severity
+                                );
+                            })
+                            .on('mouseout', function() {
+                                d3.select(this)
+                                    .attr('stroke', 'white')
+                                    .attr('stroke-width', 1);
+                                
+                                d3.select('#tooltip-container').remove();
+                            });
+                    }
+                } else {
+                    // EXPANDED VIEW: Show all subsegments (original code)
+                    // Calculate sub-segment widths proportional to their percentages within the total
+                    const totalSubPercent = d3.sum(segment.subSegments, d => d.percent);
+                    let xOffset = segment.x0 * width;
                     
-                    // Update xOffset for the next sub-segment
-                    xOffset += subWidth;
-                });
+                    // Draw each sub-segment
+                    segment.subSegments.forEach(subSegment => {
+                        // Calculate width for this sub-segment
+                        const subWidth = (subSegment.percent / totalSubPercent) * segmentWidth;
+                        
+                        svg.append('rect')
+                            .attr('y', yScale(category.y))
+                            .attr('x', xOffset)
+                            .attr('height', yScale(category.total))
+                            .attr('width', subWidth)
+                            .attr('fill', subSegment.color)
+                            .attr('opacity', subSegment.opacity)
+                            .attr('stroke', 'white')
+                            .attr('stroke-width', 1)
+                            .on('mouseover', function(event) {
+                                // Only apply stroke highlight and show tooltip if opacity is 1.0
+                                if (subSegment.opacity === 1.0) {
+                                    // Apply stroke highlight only to segments with opacity 1.0
+                                    d3.select(this)
+                                        .attr('stroke', 'black')
+                                        .attr('stroke-width', 2);
+                                    
+                                    // Get mouse position for better tooltip placement
+                                    const [mouseX, mouseY] = d3.pointer(event);
+                                    
+                                    // Simply use the category name to determine severity
+                                    let severity = category.category.toLowerCase(); // "High" -> "high", etc.
+                                    
+                                    // Show tooltip with custom information
+                                    showTooltip(
+                                        mouseX, 
+                                        mouseY, 
+                                        segment.name, 
+                                        subSegment.percent,
+                                        subSegment.hectares,
+                                        severity
+                                    );
+                                }
+                            })
+                            .on('mouseout', function() {
+                                d3.select(this)
+                                    .attr('stroke', 'white')  // Reset to white on mouseout
+                                    .attr('stroke-width', 1);
+                                
+                                d3.select('#tooltip-container').remove();
+                            });
+                        
+                        // Update xOffset for the next sub-segment
+                        xOffset += subWidth;
+                    });
+                }
             });
         }
     });
