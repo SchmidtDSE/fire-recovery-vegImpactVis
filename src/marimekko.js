@@ -306,7 +306,6 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
     // Draw rectangles for each segment in each category
     data.forEach(category => {
         if (category.category === "Total") {
-            // First, draw all rectangles WITHOUT strokes
             category.segments.forEach(segment => {
                 svg.append('rect')
                     .attr('y', yScale(category.y))
@@ -314,10 +313,13 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                     .attr('height', yScale(category.total))
                     .attr('width', (segment.x1 - segment.x0) * width)
                     .attr('fill', segment.color)
-                    .attr('stroke', 'none') // No stroke on the rectangles
+                    .attr('stroke', 'none')
+                    .attr('stroke-width', 10)
                     .on('mouseover', function(event) {
                         d3.select(this)
-                            .attr('opacity', 0.8);
+                            .attr('opacity', 0.8)
+                            .style("stroke-width", 2)
+                            .style("stroke", "black");
                         
                         const [mouseX, mouseY] = d3.pointer(event);
                         
@@ -332,52 +334,13 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                     })
                     .on('mouseout', function() {
                         d3.select(this)
-                            .attr('opacity', 1);
+                            .attr('opacity', 1)
+                            .style("stroke", "none");
                         
                         d3.select('#tooltip-container').remove();
                     });
             });
             
-            // Then, draw grid lines separately on top of all rectangles
-            category.segments.forEach(segment => {
-                // Left line of segment
-                svg.append('line')
-                    .attr('x1', segment.x0 * width)
-                    .attr('y1', yScale(category.y))
-                    .attr('x2', segment.x0 * width)
-                    .attr('y2', yScale(category.y + category.total))
-                    .attr('stroke', 'white')
-                    .attr('stroke-width', 1);
-                    
-                // Right line of segment (only for the last segment)
-                if (segment === category.segments[category.segments.length - 1]) {
-                    svg.append('line')
-                        .attr('x1', segment.x1 * width)
-                        .attr('y1', yScale(category.y))
-                        .attr('x2', segment.x1 * width)
-                        .attr('y2', yScale(category.y + category.total))
-                        .attr('stroke', 'white')
-                        .attr('stroke-width', 1);
-                }
-            });
-            
-            // Top horizontal line for the entire row
-            svg.append('line')
-                .attr('x1', 0)
-                .attr('y1', yScale(category.y))
-                .attr('x2', width)
-                .attr('y2', yScale(category.y))
-                .attr('stroke', 'white')
-                .attr('stroke-width', 1);
-                
-            // Bottom horizontal line for the entire row
-            svg.append('line')
-                .attr('x1', 0)
-                .attr('y1', yScale(category.y + category.total))
-                .attr('x2', width)
-                .attr('y2', yScale(category.y + category.total))
-                .attr('stroke', 'white')
-                .attr('stroke-width', 1);
         } else {
             // For High, Medium, and Low rows with sub-segments
             if (mode === 'condensed') {
@@ -422,7 +385,9 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                         .on('mouseover', function(event) {
                             // Use opacity change instead of stroke highlight
                             d3.select(this)
-                                .attr('opacity', 0.8);
+                                .attr('opacity', 0.8)
+                                .style("stroke-width", 2)
+                                .style("stroke", "black");
                             
                             const [mouseX, mouseY] = d3.pointer(event);
                             let severity = category.category.toLowerCase();
@@ -439,7 +404,8 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                         .on('mouseout', function() {
                             // Reset opacity
                             d3.select(this)
-                                .attr('opacity', 1);
+                                .attr('opacity', 1)
+                                .style("stroke", "none");
                             
                             d3.select('#tooltip-container').remove();
                         });
@@ -474,7 +440,9 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                                 // Only apply opacity change and show tooltip if opacity is 1.0
                                 if (subSegment.opacity === 1.0) {
                                     d3.select(this)
-                                        .attr('opacity', 0.8); // Change to 0.8 opacity instead of stroke
+                                        .attr('opacity', 0.8)
+                                        .style("stroke-width", 2)
+                                        .style("stroke", "black");
                                     
                                     const [mouseX, mouseY] = d3.pointer(event);
                                     let severity = category.category.toLowerCase();
@@ -493,7 +461,8 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                                 // Reset to original opacity
                                 if (subSegment.opacity === 1.0) {
                                     d3.select(this)
-                                        .attr('opacity', 1.0);
+                                        .attr('opacity', 1.0)
+                                        .style("stroke", "none");
                                 }
                                 
                                 d3.select('#tooltip-container').remove();
