@@ -205,8 +205,9 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
     const data = [
         {
             category: "Total",
-            total: 100,
-            segments: vegetationData.map(d => ({
+            total: 200, // Increased from 100px to 140px
+            y: 0,       // Starting at 0
+            segments: vegetationData.map((d, i) => ({
                 name: d.name, 
                 totalPercent: d.totalPercent,
                 totalHa: d.totalHa,
@@ -215,9 +216,9 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         },
         {
             category: "High",
-            total: 100,
-            // Each vegetation type is represented by its totalPercent width
-            segments: vegetationData.map(d => ({
+            total: 200, // Increased from 100px to 140px
+            y: 300,     // Position after Total row + 60px gap (adjusted for new height)
+            segments: vegetationData.map((d, i) => ({
                 name: d.name,
                 totalPercent: d.totalPercent,
                 subSegments: [
@@ -231,8 +232,9 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         },
         {
             category: "Medium",
-            total: 100,
-            segments: vegetationData.map(d => ({
+            total: 200, // Increased from 100px to 140px
+            y: 400,     // Position after High row (adjusted for new height)
+            segments: vegetationData.map((d, i) => ({
                 name: d.name,
                 totalPercent: d.totalPercent,
                 subSegments: [
@@ -246,8 +248,9 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         },
         {
             category: "Low",
-            total: 100,
-            segments: vegetationData.map(d => ({
+            total: 200, // Increased from 100px to 140px
+            y: 500,     // Position after Medium row (adjusted for new height)
+            segments: vegetationData.map((d, i) => ({
                 name: d.name,
                 totalPercent: d.totalPercent,
                 subSegments: [
@@ -261,7 +264,8 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         },
         {
             category: "Unburned",
-            total: 100,
+            total: 200,
+            y: 600,
             segments: vegetationData.map(d => ({
                 name: d.name,
                 totalPercent: d.totalPercent,
@@ -504,16 +508,44 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         }
     });
 
-    // Add category labels on the y-axis (left side)
+    // Add category labels and thresholds on the y-axis
     data.forEach(category => {
+        // Main category label
         svg.append('text')
             .attr('y', yScale(category.y) + yScale(category.total) / 2)
-            .attr('x', -80) // Position further to the left for left alignment
-            .attr('text-anchor', 'start') // Left justify (changed from 'end')
+            .attr('x', -80)
+            .attr('text-anchor', 'start')
             .attr('dominant-baseline', 'middle')
-            .style('font-size', '12px')
-            .style('font-weight', 'bold')
+            .attr('class', 'category-label')
             .text(category.category);
+        
+        // Add threshold text under each category name (except Total)
+        if (category.category !== "Total") {
+            let thresholdText = "";
+            
+            switch(category.category) {
+                case "High":
+                    thresholdText = "0.7 - 1";
+                    break;
+                case "Medium":
+                    thresholdText = "0.4 - 0.7";
+                    break;
+                case "Low":
+                    thresholdText = "0 - 0.3";
+                    break;
+                case "Unburned":
+                    thresholdText = "<0";
+                    break;
+            }
+            
+            svg.append('text')
+                .attr('y', yScale(category.y) + yScale(category.total) / 2 + 20) // Position below category name
+                .attr('x', -80)
+                .attr('text-anchor', 'start')
+                .attr('dominant-baseline', 'middle')
+                .attr('class', 'threshold-label')
+                .text(thresholdText);
+        }
     });
     
     // Add horizontal lines

@@ -27,7 +27,7 @@ h1 {
 /* Visualization Container */
 #visualization-container {
     width: 100%;
-    height: 500px;
+    height: 600px;
     border: 1px solid #ddd;
     border-radius: 4px;
     margin: 2rem 0;
@@ -77,4 +77,18 @@ svg {
 
 .tooltip-description {
     font-size: 12px;
+}
+
+/* Category labels on the left */
+.category-label {
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* Threshold text below category labels */
+.threshold-label {
+    font-size: 10px;
+    font-style: italic;
+    font-weight: lighter;
+    fill: #666;
 }
