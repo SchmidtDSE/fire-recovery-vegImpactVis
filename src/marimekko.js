@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .style('cursor', 'pointer');
     
     // Load CSV data and initialize chart
-    d3.csv("../data/vegetation_data.csv").then(function(csvData) {
+    d3.csv("../data/veg_fire_eureka.csv").then(function(csvData) {
         // Initial chart creation with condensed view
         createRotatedMarimekkoChart(csvData, viewMode);
         
@@ -305,13 +305,20 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
 
     // Draw rectangles for each segment in each category
     data.forEach(category => {
+        // For the Total row segments
         if (category.category === "Total") {
-            category.segments.forEach(segment => {
+            // Keep original widths and add 1px gaps by adjusting x-positions
+            let adjustedXPosition = 0;
+            
+            category.segments.forEach((segment, i) => {
+                // Calculate the ORIGINAL width based strictly on data
+                const segmentWidth = (segment.x1 - segment.x0) * width;
+                
                 svg.append('rect')
                     .attr('y', yScale(category.y))
-                    .attr('x', segment.x0 * width)
+                    .attr('x', adjustedXPosition) // Use adjusted position that includes gaps
                     .attr('height', yScale(category.total))
-                    .attr('width', (segment.x1 - segment.x0) * width)
+                    .attr('width', segmentWidth) // Keep original width based on data
                     .attr('fill', segment.color)
                     .attr('stroke', 'none')
                     .attr('stroke-width', 10)
@@ -335,144 +342,144 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                     .on('mouseout', function() {
                         d3.select(this)
                             .attr('opacity', 1)
-                            .style("stroke", "none");
+                            .style('stroke', 'none');
                         
                         d3.select('#tooltip-container').remove();
                     });
+                
+                // Update position for next segment, adding the gap
+                adjustedXPosition += segmentWidth + 1; // Add 1px gap
+            });
+        } else if (mode === 'condensed') {
+            // For condensed view
+            // Collect active segments with their original widths
+            const activeSegments = [];
+            
+            category.segments.forEach(segment => {
+                const activeSubSegment = segment.subSegments.find(s => s.opacity === 1.0);
+                
+                if (activeSubSegment) {
+                    const segmentWidth = (segment.x1 - segment.x0) * width;
+                    const subWidth = (activeSubSegment.percent / d3.sum(segment.subSegments, d => d.percent)) * segmentWidth;
+                    
+                    activeSegments.push({
+                        name: segment.name,
+                        width: subWidth, // Keep original width
+                        color: activeSubSegment.color,
+                        percent: activeSubSegment.percent,
+                        hectares: activeSubSegment.hectares
+                    });
+                }
             });
             
-        } else {
-            // For High, Medium, and Low rows with sub-segments
-            if (mode === 'condensed') {
-                // CONDENSED VIEW: Collect active segments and position them side by side
-                
-                // First collect all active (opacity 1.0) segments for this row
-                const activeSegments = [];
-                
-                category.segments.forEach(segment => {
-                    // Find the subsegment with opacity 1.0 for this vegetation type
-                    const activeSubSegment = segment.subSegments.find(s => s.opacity === 1.0);
-                    
-                    if (activeSubSegment) {
-                        // Calculate the exact same width as in expanded view
-                        const segmentWidth = (segment.x1 - segment.x0) * width;
-                        const subWidth = (activeSubSegment.percent / d3.sum(segment.subSegments, d => d.percent)) * segmentWidth;
+            // Draw segments with adjusted positions to create gaps
+            let adjustedXPosition = 0;
+            
+            activeSegments.forEach((segment, i) => {
+                svg.append('rect')
+                    .attr('y', yScale(category.y))
+                    .attr('x', adjustedXPosition) // Use adjusted position
+                    .attr('height', yScale(category.total))
+                    .attr('width', segment.width) // Keep original width
+                    .attr('fill', segment.color)
+                    .attr('stroke', 'none')
+                    .attr('stroke-width', 1)
+                    .on('mouseover', function(event) {
+                        // Use opacity change instead of stroke highlight
+                        d3.select(this)
+                            .attr('opacity', 0.8)
+                            .style("stroke-width", 2)
+                            .style("stroke", "black");
                         
-                        // Store segment info for drawing
-                        activeSegments.push({
-                            name: segment.name,
-                            width: subWidth,
-                            color: activeSubSegment.color,
-                            percent: activeSubSegment.percent,
-                            hectares: activeSubSegment.hectares
-                        });
-                    }
-                });
+                        const [mouseX, mouseY] = d3.pointer(event);
+                        let severity = category.category.toLowerCase();
+                        
+                        showTooltip(
+                            mouseX, 
+                            mouseY, 
+                            segment.name, 
+                            segment.percent,
+                            segment.hectares,
+                            severity
+                        );
+                    })
+                    .on('mouseout', function() {
+                        // Reset opacity
+                        d3.select(this)
+                            .attr('opacity', 1)
+                            .style('stroke', 'none');
+                        
+                        d3.select('#tooltip-container').remove();
+                    });
                 
-                // Now draw segments side by side with no gaps
-                let xPosition = 0;
+                // Update position for next segment, adding the gap
+                adjustedXPosition += segment.width + 1; // Add 1px gap
+            });
+        } else {
+            // For expanded view
+            // Start with adjustedXPosition for the entire row to track gaps properly
+            let rowXPosition = 0; // Initialize position tracker for the whole row
+            
+            category.segments.forEach((segment, segIndex) => {
+                const totalSubPercent = d3.sum(segment.subSegments, d => d.percent);
+                const segmentWidth = (segment.x1 - segment.x0) * width;
                 
-                // For condensed view:
-                activeSegments.forEach(segment => {
+                // Use tracked row position instead of segment.x0 * width
+                let xOffset = rowXPosition;
+                
+                segment.subSegments.forEach((subSegment, i) => {
+                    // Calculate original width based on data
+                    const subWidth = (subSegment.percent / totalSubPercent) * segmentWidth;
+                    
                     svg.append('rect')
                         .attr('y', yScale(category.y))
-                        .attr('x', xPosition)
+                        .attr('x', xOffset) // Use tracked position
                         .attr('height', yScale(category.total))
-                        .attr('width', segment.width)
-                        .attr('fill', segment.color)
-                        .attr('stroke', 'white')
+                        .attr('width', subWidth) // Keep original width
+                        .attr('fill', subSegment.color)
+                        .attr('opacity', subSegment.opacity)
+                        .attr('stroke', 'none')
                         .attr('stroke-width', 1)
                         .on('mouseover', function(event) {
-                            // Use opacity change instead of stroke highlight
-                            d3.select(this)
-                                .attr('opacity', 0.8)
-                                .style("stroke-width", 2)
-                                .style("stroke", "black");
-                            
-                            const [mouseX, mouseY] = d3.pointer(event);
-                            let severity = category.category.toLowerCase();
-                            
-                            showTooltip(
-                                mouseX, 
-                                mouseY, 
-                                segment.name, 
-                                segment.percent,
-                                segment.hectares,
-                                severity
-                            );
+                            // Only apply opacity change and show tooltip if opacity is 1.0
+                            if (subSegment.opacity === 1.0) {
+                                d3.select(this)
+                                    .attr('opacity', 0.8)
+                                    .style("stroke-width", 2)
+                                    .style("stroke", "black");
+                                
+                                const [mouseX, mouseY] = d3.pointer(event);
+                                let severity = category.category.toLowerCase();
+                                
+                                showTooltip(
+                                    mouseX, 
+                                    mouseY, 
+                                    segment.name, 
+                                    subSegment.percent,
+                                    subSegment.hectares,
+                                    severity
+                                );
+                            }
                         })
                         .on('mouseout', function() {
-                            // Reset opacity
-                            d3.select(this)
-                                .attr('opacity', 1)
-                                .style("stroke", "none");
+                            // Reset to original opacity
+                            if (subSegment.opacity === 1.0) {
+                                d3.select(this)
+                                    .attr('opacity', 1.0)
+                                    .style('stroke', 'none');
+                            }
                             
                             d3.select('#tooltip-container').remove();
                         });
                     
-                    // Update x-position for next segment
-                    xPosition += segment.width;
+                    // Update position for next sub-segment, adding the gap
+                    xOffset += subWidth + 1; // Add 1px gap between sub-segments
                 });
-            } else {
-                // EXPANDED VIEW: Original code
-                // Missing 'segment' variable - need to add the category.segments.forEach loop
-                category.segments.forEach(segment => {
-                    // Calculate sub-segment widths proportional to their percentages within the total
-                    const totalSubPercent = d3.sum(segment.subSegments, d => d.percent);
-                    const segmentWidth = (segment.x1 - segment.x0) * width;  // Define segmentWidth
-                    let xOffset = segment.x0 * width;
-                    
-                    // Draw each sub-segment
-                    segment.subSegments.forEach(subSegment => {
-                        // Calculate width for this sub-segment
-                        const subWidth = (subSegment.percent / totalSubPercent) * segmentWidth;
-                        
-                        svg.append('rect')
-                            .attr('y', yScale(category.y))
-                            .attr('x', xOffset)
-                            .attr('height', yScale(category.total))
-                            .attr('width', subWidth)
-                            .attr('fill', subSegment.color)
-                            .attr('opacity', subSegment.opacity)
-                            .attr('stroke', 'white')
-                            .attr('stroke-width', 1)
-                            .on('mouseover', function(event) {
-                                // Only apply opacity change and show tooltip if opacity is 1.0
-                                if (subSegment.opacity === 1.0) {
-                                    d3.select(this)
-                                        .attr('opacity', 0.8)
-                                        .style("stroke-width", 2)
-                                        .style("stroke", "black");
-                                    
-                                    const [mouseX, mouseY] = d3.pointer(event);
-                                    let severity = category.category.toLowerCase();
-                                    
-                                    showTooltip(
-                                        mouseX, 
-                                        mouseY, 
-                                        segment.name, 
-                                        subSegment.percent,
-                                        subSegment.hectares,
-                                        severity
-                                    );
-                                }
-                            })
-                            .on('mouseout', function() {
-                                // Reset to original opacity
-                                if (subSegment.opacity === 1.0) {
-                                    d3.select(this)
-                                        .attr('opacity', 1.0)
-                                        .style("stroke", "none");
-                                }
-                                
-                                d3.select('#tooltip-container').remove();
-                            });
-                        
-                        // Update xOffset for the next sub-segment
-                        xOffset += subWidth;
-                    });
-                });
-            }
+                
+                // After all sub-segments in a vegetation type, add 1px gap between vegetation types
+                // Update the row position tracker to the last sub-segment position plus 1px gap
+                rowXPosition = xOffset; // This already includes the last 1px gap from the last sub-segment
+            });
         }
     });
 
