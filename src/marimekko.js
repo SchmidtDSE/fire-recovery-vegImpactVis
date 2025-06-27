@@ -189,12 +189,15 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         name: d.vegetation,
         totalPercent: +d.total_percent,
         highPerc: +d.high_percent,
-        medPerc: +d.medium_percent,
+        medPerc: +d.moderate_percent,
         lowPerc: +d.low_percent,
+        unburnedPerc: +d.unburned_percent,
         totalHa: +d.total_ha,
-        high_ha: +d.high_ha,    // Add this line
-        medium_ha: +d.medium_ha, // Add this line
-        low_ha: +d.low_ha,      // Add this line
+        high_ha: +d.high_ha,
+        medium_ha: +d.moderate_ha,
+        low_ha: +d.low_ha,
+        unburned_ha: +d.unburned_ha,
+    
         color: d.color
     }));
     
@@ -218,6 +221,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 name: d.name,
                 totalPercent: d.totalPercent,
                 subSegments: [
+                    { name: `${d.name} (Unburned)`, percent: d.unburnedPerc, hectares: d.unburned_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (Low)`, percent: d.lowPerc, hectares: d.low_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (Medium)`, percent: d.medPerc, hectares: d.medium_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (High)`, percent: d.highPerc, hectares: d.high_ha, color: d.color, opacity: 1.0 }
@@ -232,6 +236,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 name: d.name,
                 totalPercent: d.totalPercent,
                 subSegments: [
+                    { name: `${d.name} (Unburned)`, percent: d.unburnedPerc, hectares: d.unburned_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (Low)`, percent: d.lowPerc, hectares: d.low_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (Medium)`, percent: d.medPerc, hectares: d.medium_ha, color: d.color, opacity: 1.0 },
                     { name: `${d.name} (High)`, percent: d.highPerc, hectares: d.high_ha, color: d.color, opacity: 0.3 }
@@ -246,7 +251,23 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 name: d.name,
                 totalPercent: d.totalPercent,
                 subSegments: [
+                    { name: `${d.name} (Unburned)`, percent: d.unburnedPerc, hectares: d.unburned_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (Low)`, percent: d.lowPerc, hectares: d.low_ha, color: d.color, opacity: 1.0 },
+                    { name: `${d.name} (Medium)`, percent: d.medPerc, hectares: d.medium_ha, color: d.color, opacity: 0.3 },
+                    { name: `${d.name} (High)`, percent: d.highPerc, hectares: d.high_ha, color: d.color, opacity: 0.3 }
+                ],
+                color: d.color
+            }))
+        },
+        {
+            category: "Unburned",
+            total: 100,
+            segments: vegetationData.map(d => ({
+                name: d.name,
+                totalPercent: d.totalPercent,
+                subSegments: [
+                    { name: `${d.name} (Unburned)`, percent: d.unburnedPerc, hectares: d.unburned_ha, color: d.color, opacity: 1.0 },
+                    { name: `${d.name} (Low)`, percent: d.lowPerc, hectares: d.low_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (Medium)`, percent: d.medPerc, hectares: d.medium_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (High)`, percent: d.highPerc, hectares: d.high_ha, color: d.color, opacity: 0.3 }
                 ],
@@ -501,6 +522,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
     const highRowBottom = yScale(data[1].y + data[1].total);  // Bottom of High row
     const mediumRowBottom = yScale(data[2].y + data[2].total);  // Bottom of Medium row
     const lowRowBottom = yScale(data[3].y + data[3].total);  // Bottom of Low row
+    const unburnedRowBottom = yScale(data[4].y + data[4].total);  // Bottom of Unburned row
 
     // Draw the 4 horizontal lines
     const lineStartX = -100;  // Start lines from left of the labels
@@ -539,6 +561,15 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         .attr('y1', lowRowBottom)
         .attr('x2', lineEndX)
         .attr('y2', lowRowBottom)
+        .attr('stroke', 'black')
+        .attr('stroke-width', 1);
+
+    // Line 5: Below Unburned row
+    svg.append('line')
+        .attr('x1', lineStartX)
+        .attr('y1', unburnedRowBottom)
+        .attr('x2', lineEndX)
+        .attr('y2', unburnedRowBottom)
         .attr('stroke', 'black')
         .attr('stroke-width', 1);
 
