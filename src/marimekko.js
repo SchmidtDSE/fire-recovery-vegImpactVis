@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .style('cursor', 'pointer');
     
     // Load CSV data and initialize chart
-    d3.csv("../data/veg_fire_eureka.csv").then(function(csvData) {
+    d3.csv("../data/veg_fire_matrix_eureka.csv").then(function(csvData) {
         // Initial chart creation with condensed view
         createRotatedMarimekkoChart(csvData, viewMode);
         
@@ -186,7 +186,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
     
     // Transform CSV data to the format needed for the visualization
     const vegetationData = csvData.map(d => ({
-        name: d.vegetation,
+        name: d.vegetation_classification,
         totalPercent: +d.total_percent,
         highPerc: +d.high_percent,
         medPerc: +d.moderate_percent,
@@ -194,12 +194,15 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         unburnedPerc: +d.unburned_percent,
         totalHa: +d.total_ha,
         high_ha: +d.high_ha,
-        medium_ha: +d.moderate_ha,
+        moderate_ha: +d.moderate_ha,
         low_ha: +d.low_ha,
         unburned_ha: +d.unburned_ha,
     
         color: d.color
     }));
+    
+    // Calculate total fire hectares here, once
+    const totalFireHectares = d3.sum(vegetationData, d => d.totalHa);
     
     // Create data structure for the chart
     const data = [
@@ -224,14 +227,14 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 subSegments: [
                     { name: `${d.name} (Unburned)`, percent: d.unburnedPerc, hectares: d.unburned_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (Low)`, percent: d.lowPerc, hectares: d.low_ha, color: d.color, opacity: 0.3 },
-                    { name: `${d.name} (Medium)`, percent: d.medPerc, hectares: d.medium_ha, color: d.color, opacity: 0.3 },
+                    { name: `${d.name} (Moderate)`, percent: d.medPerc, hectares: d.moderate_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (High)`, percent: d.highPerc, hectares: d.high_ha, color: d.color, opacity: 1.0 }
                 ],
                 color: d.color
             }))
         },
         {
-            category: "Medium",
+            category: "Moderate",
             total: 200, // Increased from 100px to 140px
             y: 400,     // Position after High row (adjusted for new height)
             segments: vegetationData.map((d, i) => ({
@@ -240,7 +243,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 subSegments: [
                     { name: `${d.name} (Unburned)`, percent: d.unburnedPerc, hectares: d.unburned_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (Low)`, percent: d.lowPerc, hectares: d.low_ha, color: d.color, opacity: 0.3 },
-                    { name: `${d.name} (Medium)`, percent: d.medPerc, hectares: d.medium_ha, color: d.color, opacity: 1.0 },
+                    { name: `${d.name} (Moderate)`, percent: d.medPerc, hectares: d.moderate_ha, color: d.color, opacity: 1.0 },
                     { name: `${d.name} (High)`, percent: d.highPerc, hectares: d.high_ha, color: d.color, opacity: 0.3 }
                 ],
                 color: d.color
@@ -249,14 +252,14 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         {
             category: "Low",
             total: 200, // Increased from 100px to 140px
-            y: 500,     // Position after Medium row (adjusted for new height)
+            y: 500,     // Position after Moderate row (adjusted for new height)
             segments: vegetationData.map((d, i) => ({
                 name: d.name,
                 totalPercent: d.totalPercent,
                 subSegments: [
                     { name: `${d.name} (Unburned)`, percent: d.unburnedPerc, hectares: d.unburned_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (Low)`, percent: d.lowPerc, hectares: d.low_ha, color: d.color, opacity: 1.0 },
-                    { name: `${d.name} (Medium)`, percent: d.medPerc, hectares: d.medium_ha, color: d.color, opacity: 0.3 },
+                    { name: `${d.name} (Moderate)`, percent: d.medPerc, hectares: d.moderate_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (High)`, percent: d.highPerc, hectares: d.high_ha, color: d.color, opacity: 0.3 }
                 ],
                 color: d.color
@@ -272,7 +275,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 subSegments: [
                     { name: `${d.name} (Unburned)`, percent: d.unburnedPerc, hectares: d.unburned_ha, color: d.color, opacity: 1.0 },
                     { name: `${d.name} (Low)`, percent: d.lowPerc, hectares: d.low_ha, color: d.color, opacity: 0.3 },
-                    { name: `${d.name} (Medium)`, percent: d.medPerc, hectares: d.medium_ha, color: d.color, opacity: 0.3 },
+                    { name: `${d.name} (Moderate)`, percent: d.medPerc, hectares: d.moderate_ha, color: d.color, opacity: 0.3 },
                     { name: `${d.name} (High)`, percent: d.highPerc, hectares: d.high_ha, color: d.color, opacity: 0.3 }
                 ],
                 color: d.color
@@ -379,6 +382,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             // For condensed view
             // Collect active segments with their original widths
             const activeSegments = [];
+            let totalRowPercent = 0; // Track total percent for this row
             
             category.segments.forEach(segment => {
                 const activeSubSegment = segment.subSegments.find(s => s.opacity === 1.0);
@@ -387,9 +391,12 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                     const segmentWidth = (segment.x1 - segment.x0) * width;
                     const subWidth = (activeSubSegment.percent / d3.sum(segment.subSegments, d => d.percent)) * segmentWidth;
                     
+                    // Add to the total row percentage
+                    totalRowPercent += activeSubSegment.percent;
+                    
                     activeSegments.push({
                         name: segment.name,
-                        width: subWidth, // Keep original width
+                        width: subWidth,
                         color: activeSubSegment.color,
                         percent: activeSubSegment.percent,
                         hectares: activeSubSegment.hectares
@@ -440,6 +447,33 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 // Update position for next segment, adding the gap
                 adjustedXPosition += segment.width + 1; // Add 1px gap
             });
+            
+            // After drawing all segments, add the summary percentage
+            if (category.category !== "Total") {
+                // Calculate hectares for this severity class across all vegetation types
+                let severityFieldName;
+                switch(category.category) {
+                    case "High": severityFieldName = 'high_ha'; break;
+                    case "Moderate": severityFieldName = 'moderate_ha'; break;
+                    case "Low": severityFieldName = 'low_ha'; break;
+                    case "Unburned": severityFieldName = 'unburned_ha'; break;
+                }
+                
+                // Sum hectares for this severity class across all vegetation types
+                const severityHectares = d3.sum(vegetationData, d => d[severityFieldName]);
+                
+                // Calculate what percentage of TOTAL fire this severity represents
+                const percentOfTotalFire = (severityHectares / totalFireHectares) * 100;
+                
+                svg.append('text')
+                    .attr('y', yScale(category.y) + yScale(category.total) / 2)
+                    .attr('x', width - 60)
+                    .attr('text-anchor', 'end')
+                    .attr('dominant-baseline', 'middle')
+                    .attr('class', 'category-label')
+                    .style('pointer-events', 'none')
+                    .text(`${percentOfTotalFire.toFixed(1)}%`);
+            }
         } else {
             // For expanded view
             // Start with adjustedXPosition for the entire row to track gaps properly
@@ -527,7 +561,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 case "High":
                     thresholdText = "0.7 - 1";
                     break;
-                case "Medium":
+                case "Moderate":
                     thresholdText = "0.4 - 0.7";
                     break;
                 case "Low":
@@ -552,7 +586,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
     // Get positions for the rows
     const highRowTop = yScale(data[1].y);  // Top of High row
     const highRowBottom = yScale(data[1].y + data[1].total);  // Bottom of High row
-    const mediumRowBottom = yScale(data[2].y + data[2].total);  // Bottom of Medium row
+    const moderateRowBottom = yScale(data[2].y + data[2].total);  // Bottom of Moderate row
     const lowRowBottom = yScale(data[3].y + data[3].total);  // Bottom of Low row
     const unburnedRowBottom = yScale(data[4].y + data[4].total);  // Bottom of Unburned row
 
@@ -578,12 +612,12 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         .attr('stroke', 'black')
         .attr('stroke-width', 1);
 
-    // Line 3: Below Medium row
+    // Line 3: Below Moderate row
     svg.append('line')
         .attr('x1', lineStartX)
-        .attr('y1', mediumRowBottom)
+        .attr('y1', moderateRowBottom)
         .attr('x2', lineEndX)
-        .attr('y2', mediumRowBottom)
+        .attr('y2', moderateRowBottom)
         .attr('stroke', 'black')
         .attr('stroke-width', 1);
 
