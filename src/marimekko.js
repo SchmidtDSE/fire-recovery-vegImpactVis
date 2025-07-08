@@ -60,7 +60,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         
         // Add background rectangle
         tooltip.append('rect')
-            .attr('width', 300)
+            .attr('width', 340)
             .attr('height', 200);
         
         // Text wrapping function with improved line spacing
@@ -81,7 +81,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             while (word = words.pop()) {
                 line.push(word);
                 tspan.text(line.join(' '));
-                if (tspan.node().getComputedTextLength() > width - 30) {
+                if (tspan.node().getComputedTextLength() > width - 10) {
                     line.pop();
                     tspan.text(line.join(' '));
                     line = [word];
@@ -117,7 +117,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         if (severity === "total") {
             description = "of total burn area";
         } else {
-            description = `of burn area considered ${severity} severity`;
+            description = `of species burn area considered ${severity} severity`;
         }
 
         wrapText(description, 300, 15, percentYPosition + 25, 'tooltip-description');
@@ -531,17 +531,39 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                             d3.select('#tooltip-container').remove();
                         });
                     
-                    // Update position for next sub-segment, adding the gap
-                    xOffset += subWidth + 1; // Add 1px gap between sub-segments
+                    // Update position for next sub-segment WITHOUT adding a gap
+                    xOffset += subWidth; // No gap between sub-segments of same vegetation
                 });
                 
-                // After all sub-segments in a vegetation type, add 1px gap between vegetation types
-                // Update the row position tracker to the last sub-segment position plus 1px gap
-                rowXPosition = xOffset; // This already includes the last 1px gap from the last sub-segment
+                // Only add 1px gap AFTER completing all sub-segments for a vegetation type
+                // But don't add gap after the last vegetation type
+                if (segIndex < category.segments.length - 1) {
+                    rowXPosition = xOffset + 1; // Add 1px gap between vegetation types
+                } else {
+                    rowXPosition = xOffset; // No gap after last vegetation type
+                }
             });
         }
     });
 
+    // After drawing all the category segments, but before adding labels and lines
+    // Calculate the actual total width including gaps
+    let actualTotalWidth = 0;
+
+    // Get the total width from the Total row (including gaps)
+    if (data[0].segments.length > 0) {
+        // Calculate width of Total row including all gaps
+        const totalSegments = data[0].segments;
+        actualTotalWidth = d3.sum(totalSegments, d => (d.x1 - d.x0) * width) 
+            + (totalSegments.length - 1); // Add 1px for each gap (except after last segment)
+    } else {
+        actualTotalWidth = width; // Fallback to original width
+    }
+
+    // Replace the lineEndX definition with:
+    const lineEndX = actualTotalWidth;   // End at the actual right edge with gaps
+
+    // Then use this lineEndX variable for all horizontal lines
     // Add category labels and thresholds on the y-axis
     data.forEach(category => {
         // Main category label
@@ -592,7 +614,6 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
 
     // Draw the 4 horizontal lines
     const lineStartX = -100;  // Start lines from left of the labels
-    const lineEndX = width;   // End at the right edge of visualization
 
     // Line 1: Above High row
     svg.append('line')
