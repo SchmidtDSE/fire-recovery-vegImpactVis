@@ -178,6 +178,85 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         tooltip.attr('transform', `translate(${tooltipX}, ${tooltipY})`);
     }
 
+    // Clicked View to show detailed segment information and distribution
+
+    function showClickedView(vegetationName, rect) {
+        // Remove any existing clicked view
+        d3.select('#clicked-view-panel').remove();
+        
+        // Get visualization container dimensions
+        const containerRect = container.node().getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        const containerHeight = containerRect.height;
+        
+        // Create panel with 1/3 width of container
+        const panelWidth = containerWidth / 3;
+        const panel = container.append('div')
+            .attr('id', 'clicked-view-panel')
+            .style('position', 'absolute')
+            .style('top', '0px')
+            .style('right', '0px')
+            .style('width', `${panelWidth}px`)
+            .style('height', '100%')
+            .style('background-color', 'white')
+            .style('border-left', '1px solid #ccc')
+            .style('box-shadow', '-2px 0 5px rgba(0,0,0,0.1)')
+            .style('padding', '20px')
+            .style('z-index', '1000')
+            .style('overflow-y', 'auto');
+        
+        // Add close button
+        panel.append('div')
+            .style('position', 'absolute')
+            .style('top', '10px')
+            .style('right', '10px')
+            .style('cursor', 'pointer')
+            .style('font-size', '20px')
+            .text('×')
+            .on('click', function() {
+                d3.select('#clicked-view-panel').remove();
+                // Remove highlight from selected segment
+                d3.selectAll('.segment-selected')
+                    .classed('segment-selected', false)
+                    .style('stroke', 'none');
+            });
+        
+        // Add vegetation name heading
+        panel.append('h2')
+            .style('margin-top', '40px')
+            .style('margin-bottom', '20px')
+            .style('font-size', '18px')
+            .style('font-weight', 'bold')
+            .text(vegetationName);
+        
+        // Add click outside handler to close panel
+        d3.select('body').on('click.panelClose', function(event) {
+            if (event.target.id !== 'clicked-view-panel' && 
+                !d3.select(event.target).classed('clicked-view-content') &&
+                !panel.node().contains(event.target)) {
+                
+                d3.select('#clicked-view-panel').remove();
+                d3.select('body').on('click.panelClose', null); // Remove event listener
+                
+                // Remove highlight from selected segment
+                d3.selectAll('.segment-selected')
+                    .classed('segment-selected', false)
+                    .style('stroke', 'none');
+            }
+        });
+        
+        // Highlight the clicked segment
+        d3.select(rect)
+            .classed('segment-selected', true)
+            .style('stroke', 'black')
+            .style('stroke-width', '3px');
+        
+        // Stop event propagation to prevent immediate panel closing
+        d3.select('#clicked-view-panel').on('click', function() {
+            d3.event.stopPropagation();
+        });
+    }
+
     // Get the container dimensions
     const container = d3.select('#visualization-container');
     const margin = {top: 40, right: 40, bottom: 250, left: 100}; // Increased bottom margin for legend
@@ -350,6 +429,10 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                     .attr('fill', segment.color)
                     .attr('stroke', 'none')
                     .attr('stroke-width', 10)
+                    .on('click', function(event) {
+                        event.stopPropagation(); // Prevent panel from closing immediately
+                        showClickedView(segment.name, this);
+                    })
                     .on('mouseover', function(event) {
                         d3.select(this)
                             .attr('opacity', 0.8)
@@ -416,8 +499,12 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                     .attr('fill', segment.color)
                     .attr('stroke', 'none')
                     .attr('stroke-width', 1)
+                    .on('click', function(event) {
+                        event.stopPropagation(); // Prevent panel from closing immediately
+                        showClickedView(segment.name, this);
+                    })
                     .on('mouseover', function(event) {
-                        // Use opacity change instead of stroke highlight
+                        // ...existing mouseover code...
                         d3.select(this)
                             .attr('opacity', 0.8)
                             .style("stroke-width", 2)
@@ -499,8 +586,15 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                         .attr('opacity', subSegment.opacity)
                         .attr('stroke', 'none')
                         .attr('stroke-width', 1)
+                        .on('click', function(event) {
+                            // Only show panel for opacity 1.0 segments
+                            if (subSegment.opacity === 1.0) {
+                                event.stopPropagation();
+                                showClickedView(segment.name, this);
+                            }
+                        })
                         .on('mouseover', function(event) {
-                            // Only apply opacity change and show tooltip if opacity is 1.0
+                            // ...existing mouseover code...
                             if (subSegment.opacity === 1.0) {
                                 d3.select(this)
                                     .attr('opacity', 0.8)
@@ -662,7 +756,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
 
     // Add stacked legend at the bottom with 4 items per column
     const legendItems = vegetationData.map(d => d.name);
-    const itemsPerColumn = 4;
+    const itemsPerColumn = 8;
     const columnWidth = 500; // Width between columns - adjust as needed
 
     const legend = svg.append('g')

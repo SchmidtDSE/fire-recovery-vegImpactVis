@@ -92,3 +92,20 @@ svg {
     font-weight: lighter;
     fill: #666;
 }
+
+/* Clicked View Panel Styling */
+#clicked-view-panel {
+    transition: all 0.3s ease-in-out;
+    box-sizing: border-box;
+}
+
+#clicked-view-panel h2 {
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.segment-selected {
+    stroke: #000;
+    stroke-width: 2px;
+}
