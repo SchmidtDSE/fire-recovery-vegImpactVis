@@ -15,14 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = d3.select('#visualization-container');
     const toggleBtn = container.append('div')
         .attr('class', 'toggle-container')
-        .style('position', 'absolute')
-        .style('top', '10px')
-        .style('right', '20px')
         .append('button')
         .attr('id', 'view-toggle')
-        .text('Show Expanded View')
-        .style('padding', '8px 12px')
-        .style('cursor', 'pointer');
+        .attr('class', 'toggle-button')
+        .text('Show Expanded View');
     
     // Load CSV data and initialize chart
     d3.csv("../data/veg_fire_matrix_eureka.csv").then(function(csvData) {
@@ -187,52 +183,271 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         // Get visualization container dimensions
         const containerRect = container.node().getBoundingClientRect();
         const containerWidth = containerRect.width;
-        const containerHeight = containerRect.height;
         
         // Create panel with 1/3 width of container
         const panelWidth = containerWidth / 3;
         const panel = container.append('div')
             .attr('id', 'clicked-view-panel')
-            .style('position', 'absolute')
-            .style('top', '0px')
-            .style('right', '0px')
-            .style('width', `${panelWidth}px`)
-            .style('height', '100%')
-            .style('background-color', 'white')
-            .style('border-left', '1px solid #ccc')
-            .style('box-shadow', '-2px 0 5px rgba(0,0,0,0.1)')
-            .style('padding', '20px')
-            .style('z-index', '1000')
-            .style('overflow-y', 'auto');
+            .style('width', `${panelWidth}px`);
+             // Only width remains inline as it's dynamic
         
         // Add close button
         panel.append('div')
-            .style('position', 'absolute')
-            .style('top', '10px')
-            .style('right', '10px')
-            .style('cursor', 'pointer')
-            .style('font-size', '20px')
+            .attr('class', 'panel-close')
             .text('×')
             .on('click', function() {
                 d3.select('#clicked-view-panel').remove();
                 // Remove highlight from selected segment
                 d3.selectAll('.segment-selected')
-                    .classed('segment-selected', false)
-                    .style('stroke', 'none');
+                    .classed('segment-selected', false);
             });
+        
+        // Find the vegetation data for the clicked segment
+        const vegData = vegetationData.find(d => d.name === vegetationName);
+        
+        // Exit if no data found
+        if (!vegData) {
+            panel.append('div')
+                .attr('class', 'panel-text')
+                .text('No data available for this vegetation type.');
+            return;
+        }
         
         // Add vegetation name heading
         panel.append('h2')
-            .style('margin-top', '40px')
-            .style('margin-bottom', '20px')
-            .style('font-size', '18px')
-            .style('font-weight', 'bold')
+            .attr('class', 'panel-heading')
+            .style('font-size', '22px') // Add this line to increase from default 18px
             .text(vegetationName);
+        
+        // Add vegetation overview stats
+        panel.append('p')
+            .attr('class', 'panel-text')
+            .html(`This vegetation represents <strong>${vegData.totalPercent.toFixed(1)}%</strong> of the total fire area`);
+        
+        panel.append('p')
+            .attr('class', 'panel-text')
+            .html(`Total species area affected: <strong>${vegData.totalHa.toFixed(1)}</strong> hectares`);
+        
+        // ---------- VISUALIZATION 1: Severity Breakdown ----------
+        
+        // Add divider line before the section title (moved from below title to above)
+        panel.append('hr')
+            .style('border', 'none')
+            .style('height', '2px')
+            .style('background-color', '#333')
+            .style('margin-bottom', '15px')
+            .style('margin-top', '25px');
+        
+        // Create section heading for first chart
+        panel.append('h3')
+            .attr('class', 'panel-section-title')
+            .text('Severity Distribution');
+        
+        // Reduce space between charts by changing this:
+        const chartContainer = panel.append('div')
+            .attr('class', 'chart-container')
+            .style('margin-bottom', '30px'); // Reduced from 50px to 30px for better fit on laptop screens
+        
+        // Severity breakdown data
+        const severityData = [
+            { severity: 'High', percent: vegData.highPerc, hectares: vegData.high_ha },
+            { severity: 'Moderate', percent: vegData.medPerc, hectares: vegData.moderate_ha },
+            { severity: 'Low', percent: vegData.lowPerc, hectares: vegData.low_ha },
+            { severity: 'Unburned', percent: vegData.unburnedPerc, hectares: vegData.unburned_ha }
+        ];
+        
+        // Create chart container with increased bottom margin
+        const chartWidth = panelWidth - 60;
+        const chartHeight = 150;
+        const barPadding = 0.2;
+        
+        const breakdownSvg = chartContainer.append('svg')
+            .attr('width', chartWidth)
+            .attr('height', chartHeight);
+        
+        // X scale for severity categories
+        const xScale = d3.scaleBand()
+            .domain(severityData.map(d => d.severity))
+            .range([0, chartWidth])
+            .padding(barPadding);
+        
+        // Y scale for percentages
+        const yScale = d3.scaleLinear()
+            .domain([0, 100])
+            .range([chartHeight - 30, 0]);
+        
+        // Draw bars - use same vegetation color for all severity bars
+        breakdownSvg.selectAll('.bar')
+            .data(severityData)
+            .enter()
+            .append('rect')
+            .attr('class', 'bar')
+            .attr('x', d => xScale(d.severity))
+            .attr('width', xScale.bandwidth())
+            .attr('y', d => yScale(d.percent))
+            .attr('height', d => chartHeight - 30 - yScale(d.percent))
+            .attr('fill', vegData.color); // Use same color for all bars
+        
+        // Add percentage labels on top of bars
+        breakdownSvg.selectAll('.bar-label')
+            .data(severityData)
+            .enter()
+            .append('text')
+            .attr('class', 'bar-label')
+            .attr('x', d => xScale(d.severity) + xScale.bandwidth() / 2)
+            .attr('y', d => yScale(d.percent) - 5)
+            .attr('text-anchor', 'middle')
+            .text(d => `${d.percent.toFixed(1)}%`);
+        
+        // Add x-axis labels
+        breakdownSvg.selectAll('.x-label')
+            .data(severityData)
+            .enter()
+            .append('text')
+            .attr('class', 'x-label')
+            .attr('x', d => xScale(d.severity) + xScale.bandwidth() / 2)
+            .attr('y', chartHeight - 10)
+            .attr('text-anchor', 'middle')
+            .text(d => d.severity);
+        
+        // ---------- VISUALIZATION 2: Comparison to Average ----------
+        
+        // Calculate average severity distribution across all vegetation types
+        const avgHighPercent = d3.sum(vegetationData, d => d.high_ha) / totalFireHectares * 100;
+        const avgModeratePercent = d3.sum(vegetationData, d => d.moderate_ha) / totalFireHectares * 100;
+        const avgLowPercent = d3.sum(vegetationData, d => d.low_ha) / totalFireHectares * 100;
+        const avgUnburnedPercent = d3.sum(vegetationData, d => d.unburned_ha) / totalFireHectares * 100;
+        
+        // Create comparison data
+        const comparisonData = [
+            { severity: 'High', veg: vegData.highPerc, avg: avgHighPercent },
+            { severity: 'Moderate', veg: vegData.medPerc, avg: avgModeratePercent },
+            { severity: 'Low', veg: vegData.lowPerc, avg: avgLowPercent },
+            { severity: 'Unburned', veg: vegData.unburnedPerc, avg: avgUnburnedPercent }
+        ];
+        
+        // Create section heading
+        panel.append('h3')
+            .attr('class', 'panel-section-title')
+            .text('Comparison to Fire Average');
+        
+        // Create container for second chart
+        const compChartContainer = panel.append('div')
+            .attr('class', 'chart-container');
+        
+        // Create SVG for comparison chart
+        const compChartWidth = panelWidth - 60;
+        const compChartHeight = 180;
+        const groupPadding = 0.1;
+        const subPadding = 0.05; // Changed back from 0.3 to original 0.05 value
+        
+        const comparisonSvg = compChartContainer.append('svg')
+            .attr('width', compChartWidth)
+            .attr('height', compChartHeight + 40);
+        
+        // X scale for severity categories
+        const compXScale = d3.scaleBand()
+            .domain(comparisonData.map(d => d.severity))
+            .range([0, compChartWidth])
+            .padding(groupPadding);
+        
+        // Sub-scale for grouped bars
+        const subXScale = d3.scaleBand()
+            .domain(['veg', 'avg'])
+            .range([0, compXScale.bandwidth()])
+            .padding(subPadding);
+        
+        // Y scale for percentages
+        const compYScale = d3.scaleLinear()
+            .domain([0, d3.max(comparisonData, d => Math.max(d.veg, d.avg)) * 1.1])
+            .range([compChartHeight - 30, 0]);
+        
+        // Create groups for each severity
+        const groups = comparisonSvg.selectAll('.group')
+            .data(comparisonData)
+            .enter()
+            .append('g')
+            .attr('class', 'group')
+            .attr('transform', d => `translate(${compXScale(d.severity)},0)`);
+        
+        // Draw bars for vegetation
+        groups.append('rect')
+            .attr('x', subXScale('veg'))
+            .attr('width', subXScale.bandwidth())
+            .attr('y', d => compYScale(d.veg))
+            .attr('height', d => compChartHeight - 30 - compYScale(d.veg))
+            .attr('fill', vegData.color);
+        
+        // Draw bars for average - make them black instead of gray
+        groups.append('rect')
+            .attr('x', subXScale('avg'))
+            .attr('width', subXScale.bandwidth())
+            .attr('y', d => compYScale(d.avg))
+            .attr('height', d => compChartHeight - 30 - compYScale(d.avg))
+            .attr('fill', '#BCBABA'); // Changed from #000000 to #BCBABA
+        
+        // Add percentage labels for vegetation
+        groups.append('text')
+            .attr('class', 'bar-label')
+            .attr('x', subXScale('veg') + subXScale.bandwidth() / 2)
+            .attr('y', d => compYScale(d.veg) - 5)
+            .attr('text-anchor', 'middle')
+            .text(d => `${d.veg.toFixed(1)}%`);
+        
+        // Add percentage labels for average
+        groups.append('text')
+            .attr('class', 'bar-label')
+            .attr('x', subXScale('avg') + subXScale.bandwidth() / 2)
+            .attr('y', d => compYScale(d.avg) - 5)
+            .attr('text-anchor', 'middle')
+            .text(d => `${d.avg.toFixed(1)}%`);
+        
+        // Add x-axis labels
+        comparisonSvg.selectAll('.comp-x-label')
+            .data(comparisonData)
+            .enter()
+            .append('text')
+            .attr('class', 'comp-x-label')
+            .attr('x', d => compXScale(d.severity) + compXScale.bandwidth() / 2)
+            .attr('y', compChartHeight - 10)
+            .attr('text-anchor', 'middle')
+            .text(d => d.severity);
+        
+        // Add legend
+        const legend = comparisonSvg.append('g')
+            .attr('class', 'legend')
+            .attr('transform', `translate(${compXScale('High')}, ${compChartHeight + 16})`); // Changed from compChartHeight - 13 to compChartHeight + 10
+        
+        // Legend item for this vegetation
+        legend.append('rect')
+            .attr('x', 0)
+            .attr('width', 10)
+            .attr('height', 10)
+            .attr('fill', vegData.color);
+
+        legend.append('text')
+            .attr('class', 'legend-item')
+            .attr('x', 15)
+            .attr('y', 10)
+            .text(vegetationName); // Use actual vegetation name instead of "This vegetation"
+    
+        // Legend item for average - position below first item
+        legend.append('rect')
+            .attr('x', 0)
+            .attr('y', 20) // Position below first legend item
+            .attr('width', 10)
+            .attr('height', 10)
+            .attr('fill', '#BCBABA'); // Changed from #000000 to #BCBABA
+    
+        legend.append('text')
+            .attr('class', 'legend-item')
+            .attr('x', 15)
+            .attr('y', 30) // Position text for second item
+            .text('Fire average');
         
         // Add click outside handler to close panel
         d3.select('body').on('click.panelClose', function(event) {
             if (event.target.id !== 'clicked-view-panel' && 
-                !d3.select(event.target).classed('clicked-view-content') &&
                 !panel.node().contains(event.target)) {
                 
                 d3.select('#clicked-view-panel').remove();
@@ -240,20 +455,17 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 
                 // Remove highlight from selected segment
                 d3.selectAll('.segment-selected')
-                    .classed('segment-selected', false)
-                    .style('stroke', 'none');
+                    .classed('segment-selected', false);
             }
         });
         
         // Highlight the clicked segment
         d3.select(rect)
-            .classed('segment-selected', true)
-            .style('stroke', 'black')
-            .style('stroke-width', '3px');
+            .classed('segment-selected', true);
         
         // Stop event propagation to prevent immediate panel closing
-        d3.select('#clicked-view-panel').on('click', function() {
-            d3.event.stopPropagation();
+        panel.on('click', function(event) {
+            event.stopPropagation();
         });
     }
 
@@ -788,6 +1000,50 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .attr('x', columnIndex * columnWidth + 25)
             .attr('y', rowIndex * 20 + 17)
             .style('font-size', '12px')
+            .text(item);
+    });
+}
+
+// Updated legend creation code using CSS classes
+function createLegend(svg, data, width, height) {
+    // Get unique vegetation types for legend
+    const legendItems = data[0].segments.map(d => d.name);
+    
+    // Calculate legend layout
+    const itemsPerColumn = Math.min(4, legendItems.length);
+    const columnWidth = Math.min(200, width / Math.ceil(legendItems.length / itemsPerColumn));
+    
+    // Create legend group
+    const legend = svg.append('g')
+        .attr('class', 'legend')
+        .attr('transform', `translate(0, ${height + 40})`);
+    
+    // Add legend title
+    legend.append('text')
+        .attr('class', 'legend-title')
+        .attr('x', 0)
+        .attr('y', -5)
+        .text('Vegetation Types:');
+    
+    // Add legend items
+    legendItems.forEach((item, i) => {
+        const color = data[0].segments.find(d => d.name === item).color;
+        const column = Math.floor(i / itemsPerColumn);
+        const row = i % itemsPerColumn;
+        
+        // Add color box
+        legend.append('rect')
+            .attr('x', column * columnWidth)
+            .attr('y', row * 20 + 5)
+            .attr('width', 15)
+            .attr('height', 15)
+            .attr('fill', color);
+        
+        // Add text label
+        legend.append('text')
+            .attr('class', 'legend-item')
+            .attr('x', column * columnWidth + 20)
+            .attr('y', row * 20 + 18)
             .text(item);
     });
 }
