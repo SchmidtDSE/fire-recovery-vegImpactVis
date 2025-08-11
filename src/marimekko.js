@@ -1,4 +1,11 @@
-// Rotated D3 Marimekko Chart Implementation with detailed segments
+/**
+ * Rotated Marimekko Chart for Vegetation Fire Impact Visualization
+ * Displays fire severity across different vegetation types in both condensed and expanded views
+ */
+
+//------------------------------------------------------------------------------
+// INITIALIZATION AND EVENT HANDLING
+//------------------------------------------------------------------------------
 
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof d3 === 'undefined') {
@@ -44,10 +51,102 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+//------------------------------------------------------------------------------
+// MAIN VISUALIZATION FUNCTION
+//------------------------------------------------------------------------------
+
 function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
+    
+    //--------------------------------------------------------------------------
+    // UTILITY FUNCTIONS
+    //--------------------------------------------------------------------------
+    
+    /**
+     * Text wrapping utility function for tooltip text
+     * Handles multiline text with proper spacing
+     */
+    function wrapText(text, width, xPos, yPos, className, container) {
+        const words = text.split(/\s+/).reverse();
+        let word;
+        let line = [];
+        let lineNumber = 0;
+        const lineHeight = className === 'tooltip-vegetation-name' ? 16 : 14;
+        let tspan = container.append('text')
+            .attr('class', className)
+            .attr('x', xPos)
+            .attr('y', yPos)
+            .append('tspan')
+            .attr('x', xPos);
+
+        while (word = words.pop()) {
+            line.push(word);
+            tspan.text(line.join(' '));
+            if (tspan.node().getComputedTextLength() > width - 10) {
+                line.pop();
+                tspan.text(line.join(' '));
+                line = [word];
+                tspan = container.append('text')
+                    .attr('class', className)
+                    .attr('x', xPos)
+                    .attr('y', yPos + (++lineNumber * lineHeight))
+                    .append('tspan')
+                    .attr('x', xPos)
+                    .text(word);
+            }
+        }
+        
+        return lineNumber; // Return number of wrapped lines
+    }
+    
+    /**
+     * Wraps text for legend labels in the side panel
+     * Returns number of lines created
+     */
+    function wrapLegendText(textElement, text, width) {
+        const words = text.split(/\s+/);
+        let line = [];
+        let lineNumber = 0;
+        let tspan = textElement.append('tspan')
+            .attr('x', +textElement.attr('x'))
+            .attr('dy', 0);
+            
+        // Process each word
+        for (let i = 0; i < words.length; i++) {
+            line.push(words[i]);
+            tspan.text(line.join(' '));
+            
+            // Check if line is too long
+            if (tspan.node().getComputedTextLength() > width) {
+                line.pop(); // Remove the last word
+                if (line.length > 0) {
+                    tspan.text(line.join(' '));
+                }
+                
+                // Start a new line
+                line = [words[i]];
+                tspan = textElement.append('tspan')
+                    .attr('x', +textElement.attr('x'))
+                    .attr('dy', '14px')
+                    .text(words[i]);
+                    
+                lineNumber++;
+            }
+        }
+        
+        return lineNumber + 1; // Return total number of lines (including first)
+    }
+
+    //--------------------------------------------------------------------------
+    // TOOLTIP FUNCTIONALITY
+    //--------------------------------------------------------------------------
+    
+    /**
+     * Shows a tooltip when hovering over segments
+     * Displays vegetation name, percentage, and hectares info
+     */
     function showTooltip(x, y, name, percent, hectares, severity) {
-    // Remove any existing tooltips
-    d3.select('#tooltip-container').remove();
+        // Remove any existing tooltips
+        d3.select('#tooltip-container').remove();
         
         // Create tooltip group
         const tooltip = svg.append('g')
@@ -59,46 +158,10 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .attr('width', 340)
             .attr('height', 200);
         
-        // Text wrapping function with improved line spacing
-        function wrapText(text, width, xPos, yPos, className) {
-            const words = text.split(/\s+/).reverse();
-            let word;
-            let line = [];
-            let lineNumber = 0;
-            // Reduced line height to fix spacing between wrapped lines
-            const lineHeight = className === 'tooltip-vegetation-name' ? 16 : 14;
-            let tspan = tooltip.append('text')
-                .attr('class', className)
-                .attr('x', xPos)
-                .attr('y', yPos)
-                .append('tspan')
-                .attr('x', xPos);
-
-            while (word = words.pop()) {
-                line.push(word);
-                tspan.text(line.join(' '));
-                if (tspan.node().getComputedTextLength() > width - 10) {
-                    line.pop();
-                    tspan.text(line.join(' '));
-                    line = [word];
-                    tspan = tooltip.append('text')
-                        .attr('class', className)
-                        .attr('x', xPos)
-                        .attr('y', yPos + (++lineNumber * lineHeight))
-                        .append('tspan')
-                        .attr('x', xPos)
-                        .text(word);
-                }
-            }
-            
-            return lineNumber; // Return number of wrapped lines
-        }
-        
         // Add wrapped vegetation name text and get line count
-        const vegetationNameLines = wrapText(name, 300, 15, 30, 'tooltip-vegetation-name');
+        const vegetationNameLines = wrapText(name, 300, 15, 30, 'tooltip-vegetation-name', tooltip);
         
         // Calculate base y-position for percentage based on name height
-        // Base position + lines * line-height + 40px spacing
         const percentYPosition = 30 + (vegetationNameLines * 16) + 40;
         
         // Add percentage value with 40px space after name
@@ -116,9 +179,9 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             description = `of species burn area considered ${severity} severity`;
         }
 
-        wrapText(description, 300, 15, percentYPosition + 25, 'tooltip-description');
+        wrapText(description, 300, 15, percentYPosition + 25, 'tooltip-description', tooltip);
         
-        // Only add hectare information if it's provided (remove Total row restriction)
+        // Only add hectare information if it's provided
         if (hectares !== undefined) {
             // Add hectare value with same styling as percentage
             tooltip.append('text')
@@ -135,7 +198,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 .text("hectares burned");
         }
         
-        // Get dimensions for positioning
+        // Position tooltip intelligently relative to mouse position
         const tooltipWidth = 300;
         const tooltipHeight = 200;
         const containerWidth = width;
@@ -145,19 +208,12 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         const isInRightHalf = x > containerWidth / 2;
         
         // Calculate position based on which half we're in
-        let tooltipX;
-        if (isInRightHalf) {
-            // Position tooltip to the LEFT of cursor if in right half
-            tooltipX = x - tooltipWidth - 10;
-        } else {
-            // Position tooltip to the RIGHT of cursor if in left half
-            tooltipX = x + 10;
-        }
+        let tooltipX = isInRightHalf ? (x - tooltipWidth - 10) : (x + 10);
         
         // Ensure tooltip stays within horizontal bounds
         tooltipX = Math.max(10, Math.min(containerWidth - tooltipWidth - 10, tooltipX));
         
-        // Calculate vertical position (similar to before)
+        // Calculate vertical position
         let tooltipY = y - tooltipHeight - 10;
         
         // If tooltip would go above the container, position below cursor
@@ -174,8 +230,14 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         tooltip.attr('transform', `translate(${tooltipX}, ${tooltipY})`);
     }
 
-    // Clicked View to show detailed segment information and distribution
-
+    //--------------------------------------------------------------------------
+    // SIDE PANEL FUNCTIONALITY
+    //--------------------------------------------------------------------------
+    
+    /**
+     * Shows detailed view panel when a segment is clicked
+     * Displays vegetation details and two comparative charts
+     */
     function showClickedView(vegetationName, rect) {
         // Remove any existing clicked view
         d3.select('#clicked-view-panel').remove();
@@ -189,7 +251,6 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         const panel = container.append('div')
             .attr('id', 'clicked-view-panel')
             .style('width', `${panelWidth}px`);
-             // Only width remains inline as it's dynamic
         
         // Add close button
         panel.append('div')
@@ -213,24 +274,30 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             return;
         }
         
+        //----------------------------------------------------------------------
+        // VEGETATION OVERVIEW SECTION
+        //----------------------------------------------------------------------
+        
         // Add vegetation name heading
         panel.append('h2')
             .attr('class', 'panel-heading')
-            .style('font-size', '22px') // Add this line to increase from default 18px
+            .style('font-size', '22px')
             .text(vegetationName);
         
         // Add vegetation overview stats
         panel.append('p')
             .attr('class', 'panel-text')
-            .html(`This vegetation represents <strong>${vegData.totalPercent.toFixed(1)}%</strong> of the total fire area`);
+            .html(`This vegetation represents <strong>${vegData.totalPercent.toFixed(1)}%</strong> of the total burn area`);
         
         panel.append('p')
             .attr('class', 'panel-text')
             .html(`Total species area affected: <strong>${vegData.totalHa.toFixed(1)}</strong> hectares`);
         
-        // ---------- VISUALIZATION 1: Severity Breakdown ----------
+        //----------------------------------------------------------------------
+        // SEVERITY DISTRIBUTION CHART
+        //----------------------------------------------------------------------
         
-        // Add divider line before the section title (moved from below title to above)
+        // Add divider line before the section
         panel.append('hr')
             .style('border', 'none')
             .style('height', '2px')
@@ -238,15 +305,15 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .style('margin-bottom', '15px')
             .style('margin-top', '25px');
         
-        // Create section heading for first chart
+        // Create section heading
         panel.append('h3')
             .attr('class', 'panel-section-title')
-            .text('Severity Distribution');
+            .text('Species Severity Distribution');
         
-        // Reduce space between charts by changing this:
+        // Create chart container
         const chartContainer = panel.append('div')
             .attr('class', 'chart-container')
-            .style('margin-bottom', '30px'); // Reduced from 50px to 30px for better fit on laptop screens
+            .style('margin-bottom', '30px');
         
         // Severity breakdown data
         const severityData = [
@@ -256,7 +323,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             { severity: 'Unburned', percent: vegData.unburnedPerc, hectares: vegData.unburned_ha }
         ];
         
-        // Create chart container with increased bottom margin
+        // Create SVG for breakdown chart
         const chartWidth = panelWidth - 60;
         const chartHeight = 150;
         const barPadding = 0.2;
@@ -276,7 +343,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .domain([0, 100])
             .range([chartHeight - 30, 0]);
         
-        // Draw bars - use same vegetation color for all severity bars
+        // Draw bars - use same vegetation color for all bars
         breakdownSvg.selectAll('.bar')
             .data(severityData)
             .enter()
@@ -286,7 +353,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .attr('width', xScale.bandwidth())
             .attr('y', d => yScale(d.percent))
             .attr('height', d => chartHeight - 30 - yScale(d.percent))
-            .attr('fill', vegData.color); // Use same color for all bars
+            .attr('fill', vegData.color);
         
         // Add percentage labels on top of bars
         breakdownSvg.selectAll('.bar-label')
@@ -310,7 +377,9 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .attr('text-anchor', 'middle')
             .text(d => d.severity);
         
-        // ---------- VISUALIZATION 2: Comparison to Average ----------
+        //----------------------------------------------------------------------
+        // COMPARISON TO FIRE AVERAGE CHART
+        //----------------------------------------------------------------------
         
         // Calculate average severity distribution across all vegetation types
         const avgHighPercent = d3.sum(vegetationData, d => d.high_ha) / totalFireHectares * 100;
@@ -329,7 +398,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         // Create section heading
         panel.append('h3')
             .attr('class', 'panel-section-title')
-            .text('Comparison to Fire Average');
+            .text('Comparison to Total Fire');
         
         // Create container for second chart
         const compChartContainer = panel.append('div')
@@ -339,7 +408,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         const compChartWidth = panelWidth - 60;
         const compChartHeight = 180;
         const groupPadding = 0.1;
-        const subPadding = 0.05; // Changed back from 0.3 to original 0.05 value
+        const subPadding = 0.05;
         
         const comparisonSvg = compChartContainer.append('svg')
             .attr('width', compChartWidth)
@@ -359,7 +428,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         
         // Y scale for percentages
         const compYScale = d3.scaleLinear()
-            .domain([0, d3.max(comparisonData, d => Math.max(d.veg, d.avg)) * 1.1])
+            .domain([0, d3.max(comparisonData, d => Math.max(d.veg, d.avg)) * 1.2])
             .range([compChartHeight - 30, 0]);
         
         // Create groups for each severity
@@ -378,13 +447,13 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .attr('height', d => compChartHeight - 30 - compYScale(d.veg))
             .attr('fill', vegData.color);
         
-        // Draw bars for average - make them black instead of gray
+        // Draw bars for total
         groups.append('rect')
             .attr('x', subXScale('avg'))
             .attr('width', subXScale.bandwidth())
             .attr('y', d => compYScale(d.avg))
             .attr('height', d => compChartHeight - 30 - compYScale(d.avg))
-            .attr('fill', '#BCBABA'); // Changed from #000000 to #BCBABA
+            .attr('fill', '#BCBABA');
         
         // Add percentage labels for vegetation
         groups.append('text')
@@ -413,10 +482,10 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .attr('text-anchor', 'middle')
             .text(d => d.severity);
         
-        // Add legend
+        // Add legend with enough space for wrapped text
         const legend = comparisonSvg.append('g')
             .attr('class', 'legend')
-            .attr('transform', `translate(${compXScale('High')}, ${compChartHeight + 16})`); // Changed from compChartHeight - 13 to compChartHeight + 10
+            .attr('transform', `translate(${compXScale('High')}, ${compChartHeight + 12})`);
         
         // Legend item for this vegetation
         legend.append('rect')
@@ -425,25 +494,35 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .attr('height', 10)
             .attr('fill', vegData.color);
 
-        legend.append('text')
+        // Create text element for vegetation name
+        const vegTextElement = legend.append('text')
             .attr('class', 'legend-item')
             .attr('x', 15)
-            .attr('y', 10)
-            .text(vegetationName); // Use actual vegetation name instead of "This vegetation"
-    
-        // Legend item for average - position below first item
+            .attr('y', 9);
+
+        // Apply text wrapping to vegetation name
+        const vegLines = wrapLegendText(vegTextElement, vegetationName, panelWidth - 80);
+
+        // Position second legend item based on wrapped text height
+        const secondItemY = 16 + (vegLines * 8);
+
+        // Legend item for average
         legend.append('rect')
             .attr('x', 0)
-            .attr('y', 20) // Position below first legend item
+            .attr('y', secondItemY)
             .attr('width', 10)
             .attr('height', 10)
-            .attr('fill', '#BCBABA'); // Changed from #000000 to #BCBABA
+            .attr('fill', '#BCBABA'); 
     
         legend.append('text')
             .attr('class', 'legend-item')
             .attr('x', 15)
-            .attr('y', 30) // Position text for second item
-            .text('Fire average');
+            .attr('y', secondItemY + 9)
+            .text('Total Fire');
+        
+        // Ensure SVG is tall enough to contain legend with wrapped text
+        comparisonSvg
+            .attr('height', compChartHeight + 40 + secondItemY + 20);
         
         // Add click outside handler to close panel
         d3.select('body').on('click.panelClose', function(event) {
@@ -469,13 +548,17 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         });
     }
 
-    // Get the container dimensions
+    //--------------------------------------------------------------------------
+    // MAIN VISUALIZATION SETUP
+    //--------------------------------------------------------------------------
+    
+    // Set up container and dimensions
     const container = d3.select('#visualization-container');
-    const margin = {top: 40, right: 40, bottom: 250, left: 100}; // Increased bottom margin for legend
+    const margin = {top: 40, right: 40, bottom: 250, left: 100};
     const width = container.node().getBoundingClientRect().width - margin.left - margin.right;
     const height = container.node().getBoundingClientRect().height - margin.top - margin.bottom;
     
-    // Transform CSV data to the format needed for the visualization
+    // Transform CSV data to visualization format
     const vegetationData = csvData.map(d => ({
         name: d.vegetation_classification,
         totalPercent: +d.total_percent,
@@ -488,19 +571,22 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         moderate_ha: +d.moderate_ha,
         low_ha: +d.low_ha,
         unburned_ha: +d.unburned_ha,
-    
         color: d.color
     }));
     
-    // Calculate total fire hectares here, once
+    // Calculate total fire hectares for percentage calculations
     const totalFireHectares = d3.sum(vegetationData, d => d.totalHa);
     
-    // Create data structure for the chart
+    //--------------------------------------------------------------------------
+    // DATA STRUCTURE SETUP
+    //--------------------------------------------------------------------------
+    
+    // Create data structure for the chart with rows for each severity level
     const data = [
         {
             category: "Total",
-            total: 200, // Increased from 100px to 140px
-            y: 0,       // Starting at 0
+            total: 200,
+            y: 0,
             segments: vegetationData.map((d, i) => ({
                 name: d.name, 
                 totalPercent: d.totalPercent,
@@ -510,8 +596,8 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         },
         {
             category: "High",
-            total: 200, // Increased from 100px to 140px
-            y: 300,     // Position after Total row + 60px gap (adjusted for new height)
+            total: 200,
+            y: 300,
             segments: vegetationData.map((d, i) => ({
                 name: d.name,
                 totalPercent: d.totalPercent,
@@ -526,8 +612,8 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         },
         {
             category: "Moderate",
-            total: 200, // Increased from 100px to 140px
-            y: 400,     // Position after High row (adjusted for new height)
+            total: 200,
+            y: 400,
             segments: vegetationData.map((d, i) => ({
                 name: d.name,
                 totalPercent: d.totalPercent,
@@ -542,8 +628,8 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         },
         {
             category: "Low",
-            total: 200, // Increased from 100px to 140px
-            y: 500,     // Position after Moderate row (adjusted for new height)
+            total: 200,
+            y: 500,
             segments: vegetationData.map((d, i) => ({
                 name: d.name,
                 totalPercent: d.totalPercent,
@@ -574,8 +660,8 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         }
     ];
 
-    // Process data to calculate cumulative positions
-    const totalHeight = d3.sum(data, d => d.total) + 60;
+    // Process data to calculate positions and spacing
+    const totalHeight = d3.sum(data, d => d.total) + 60; // Add 60px space after Total row
     let yPosition = 0;
 
     data.forEach((category, index) => {
@@ -609,7 +695,10 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         }
     });
 
-
+    //--------------------------------------------------------------------------
+    // SVG SETUP AND SCALES
+    //--------------------------------------------------------------------------
+    
     // Create SVG
     const svg = container.append('svg')
         .attr('width', width + margin.left + margin.right)
@@ -621,28 +710,31 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
     const yScale = d3.scaleLinear()
         .domain([0, totalHeight])
         .range([0, height]);
+        
+    //--------------------------------------------------------------------------
+    // DRAWING THE VISUALIZATION SEGMENTS
+    //--------------------------------------------------------------------------
 
     // Draw rectangles for each segment in each category
     data.forEach(category => {
-        // For the Total row segments
+        
+        // TOTAL ROW SEGMENTS
         if (category.category === "Total") {
-            // Keep original widths and add 1px gaps by adjusting x-positions
             let adjustedXPosition = 0;
             
             category.segments.forEach((segment, i) => {
-                // Calculate the ORIGINAL width based strictly on data
                 const segmentWidth = (segment.x1 - segment.x0) * width;
                 
                 svg.append('rect')
                     .attr('y', yScale(category.y))
-                    .attr('x', adjustedXPosition) // Use adjusted position that includes gaps
+                    .attr('x', adjustedXPosition)
                     .attr('height', yScale(category.total))
-                    .attr('width', segmentWidth) // Keep original width based on data
+                    .attr('width', segmentWidth)
                     .attr('fill', segment.color)
                     .attr('stroke', 'none')
                     .attr('stroke-width', 10)
                     .on('click', function(event) {
-                        event.stopPropagation(); // Prevent panel from closing immediately
+                        event.stopPropagation();
                         showClickedView(segment.name, this);
                     })
                     .on('mouseover', function(event) {
@@ -673,11 +765,12 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 // Update position for next segment, adding the gap
                 adjustedXPosition += segmentWidth + 1; // Add 1px gap
             });
-        } else if (mode === 'condensed') {
-            // For condensed view
+        } 
+        // CONDENSED VIEW
+        else if (mode === 'condensed') {
             // Collect active segments with their original widths
             const activeSegments = [];
-            let totalRowPercent = 0; // Track total percent for this row
+            let totalRowPercent = 0;
             
             category.segments.forEach(segment => {
                 const activeSubSegment = segment.subSegments.find(s => s.opacity === 1.0);
@@ -705,18 +798,17 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             activeSegments.forEach((segment, i) => {
                 svg.append('rect')
                     .attr('y', yScale(category.y))
-                    .attr('x', adjustedXPosition) // Use adjusted position
+                    .attr('x', adjustedXPosition)
                     .attr('height', yScale(category.total))
-                    .attr('width', segment.width) // Keep original width
+                    .attr('width', segment.width)
                     .attr('fill', segment.color)
                     .attr('stroke', 'none')
                     .attr('stroke-width', 1)
                     .on('click', function(event) {
-                        event.stopPropagation(); // Prevent panel from closing immediately
+                        event.stopPropagation();
                         showClickedView(segment.name, this);
                     })
                     .on('mouseover', function(event) {
-                        // ...existing mouseover code...
                         d3.select(this)
                             .attr('opacity', 0.8)
                             .style("stroke-width", 2)
@@ -735,7 +827,6 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                         );
                     })
                     .on('mouseout', function() {
-                        // Reset opacity
                         d3.select(this)
                             .attr('opacity', 1)
                             .style('stroke', 'none');
@@ -773,10 +864,11 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                     .style('pointer-events', 'none')
                     .text(`${percentOfTotalFire.toFixed(1)}%`);
             }
-        } else {
-            // For expanded view
+        } 
+        // EXPANDED VIEW
+        else {
             // Start with adjustedXPosition for the entire row to track gaps properly
-            let rowXPosition = 0; // Initialize position tracker for the whole row
+            let rowXPosition = 0;
             
             category.segments.forEach((segment, segIndex) => {
                 const totalSubPercent = d3.sum(segment.subSegments, d => d.percent);
@@ -791,9 +883,9 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                     
                     svg.append('rect')
                         .attr('y', yScale(category.y))
-                        .attr('x', xOffset) // Use tracked position
+                        .attr('x', xOffset)
                         .attr('height', yScale(category.total))
-                        .attr('width', subWidth) // Keep original width
+                        .attr('width', subWidth)
                         .attr('fill', subSegment.color)
                         .attr('opacity', subSegment.opacity)
                         .attr('stroke', 'none')
@@ -806,7 +898,6 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                             }
                         })
                         .on('mouseover', function(event) {
-                            // ...existing mouseover code...
                             if (subSegment.opacity === 1.0) {
                                 d3.select(this)
                                     .attr('opacity', 0.8)
@@ -827,7 +918,6 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                             }
                         })
                         .on('mouseout', function() {
-                            // Reset to original opacity
                             if (subSegment.opacity === 1.0) {
                                 d3.select(this)
                                     .attr('opacity', 1.0)
@@ -838,7 +928,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                         });
                     
                     // Update position for next sub-segment WITHOUT adding a gap
-                    xOffset += subWidth; // No gap between sub-segments of same vegetation
+                    xOffset += subWidth;
                 });
                 
                 // Only add 1px gap AFTER completing all sub-segments for a vegetation type
@@ -852,7 +942,10 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         }
     });
 
-    // After drawing all the category segments, but before adding labels and lines
+    //--------------------------------------------------------------------------
+    // ADDING HORIZONTAL LINES AND CATEGORY LABELS
+    //--------------------------------------------------------------------------
+    
     // Calculate the actual total width including gaps
     let actualTotalWidth = 0;
 
@@ -861,15 +954,14 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         // Calculate width of Total row including all gaps
         const totalSegments = data[0].segments;
         actualTotalWidth = d3.sum(totalSegments, d => (d.x1 - d.x0) * width) 
-            + (totalSegments.length - 1); // Add 1px for each gap (except after last segment)
+            + (totalSegments.length - 1); // Add 1px for each gap
     } else {
-        actualTotalWidth = width; // Fallback to original width
+        actualTotalWidth = width;
     }
 
-    // Replace the lineEndX definition with:
-    const lineEndX = actualTotalWidth;   // End at the actual right edge with gaps
+    const lineEndX = actualTotalWidth;  // End lines at the actual right edge with gaps
+    const lineStartX = -100;            // Start lines from left of the labels
 
-    // Then use this lineEndX variable for all horizontal lines
     // Add category labels and thresholds on the y-axis
     data.forEach(category => {
         // Main category label
@@ -886,22 +978,14 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             let thresholdText = "";
             
             switch(category.category) {
-                case "High":
-                    thresholdText = "0.7 - 1";
-                    break;
-                case "Moderate":
-                    thresholdText = "0.4 - 0.7";
-                    break;
-                case "Low":
-                    thresholdText = "0 - 0.3";
-                    break;
-                case "Unburned":
-                    thresholdText = "<0";
-                    break;
+                case "High": thresholdText = "0.7 - 1"; break;
+                case "Moderate": thresholdText = "0.4 - 0.7"; break;
+                case "Low": thresholdText = "0 - 0.3"; break;
+                case "Unburned": thresholdText = "<0"; break;
             }
             
             svg.append('text')
-                .attr('y', yScale(category.y) + yScale(category.total) / 2 + 20) // Position below category name
+                .attr('y', yScale(category.y) + yScale(category.total) / 2 + 20)
                 .attr('x', -80)
                 .attr('text-anchor', 'start')
                 .attr('dominant-baseline', 'middle')
@@ -910,18 +994,14 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         }
     });
     
-    // Add horizontal lines
-    // Get positions for the rows
-    const highRowTop = yScale(data[1].y);  // Top of High row
-    const highRowBottom = yScale(data[1].y + data[1].total);  // Bottom of High row
-    const moderateRowBottom = yScale(data[2].y + data[2].total);  // Bottom of Moderate row
-    const lowRowBottom = yScale(data[3].y + data[3].total);  // Bottom of Low row
-    const unburnedRowBottom = yScale(data[4].y + data[4].total);  // Bottom of Unburned row
+    // Get positions for the rows for horizontal lines
+    const highRowTop = yScale(data[1].y);
+    const highRowBottom = yScale(data[1].y + data[1].total);
+    const moderateRowBottom = yScale(data[2].y + data[2].total);
+    const lowRowBottom = yScale(data[3].y + data[3].total);
+    const unburnedRowBottom = yScale(data[4].y + data[4].total);
 
-    // Draw the 4 horizontal lines
-    const lineStartX = -100;  // Start lines from left of the labels
-
-    // Line 1: Above High row
+    // Draw horizontal separator lines
     svg.append('line')
         .attr('x1', lineStartX)
         .attr('y1', highRowTop)
@@ -930,7 +1010,6 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         .attr('stroke', 'black')
         .attr('stroke-width', 1);
 
-    // Line 2: Below High row
     svg.append('line')
         .attr('x1', lineStartX)
         .attr('y1', highRowBottom)
@@ -939,7 +1018,6 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         .attr('stroke', 'black')
         .attr('stroke-width', 1);
 
-    // Line 3: Below Moderate row
     svg.append('line')
         .attr('x1', lineStartX)
         .attr('y1', moderateRowBottom)
@@ -948,7 +1026,6 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         .attr('stroke', 'black')
         .attr('stroke-width', 1);
 
-    // Line 4: Below Low row
     svg.append('line')
         .attr('x1', lineStartX)
         .attr('y1', lowRowBottom)
@@ -957,7 +1034,6 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         .attr('stroke', 'black')
         .attr('stroke-width', 1);
 
-    // Line 5: Below Unburned row
     svg.append('line')
         .attr('x1', lineStartX)
         .attr('y1', unburnedRowBottom)
@@ -966,10 +1042,14 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         .attr('stroke', 'black')
         .attr('stroke-width', 1);
 
-    // Add stacked legend at the bottom with 4 items per column
+    //--------------------------------------------------------------------------
+    // LEGEND CREATION
+    //--------------------------------------------------------------------------
+    
+    // Add stacked legend at the bottom
     const legendItems = vegetationData.map(d => d.name);
     const itemsPerColumn = 8;
-    const columnWidth = 500; // Width between columns - adjust as needed
+    const columnWidth = 500; // Width between columns
 
     const legend = svg.append('g')
         .attr('transform', `translate(0, ${height + 60})`);
@@ -983,7 +1063,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         .style('font-size', '12px')
         .text('Vegetation:');
     
-    // Create legend items in columns of 4
+    // Create legend items in columns
     legendItems.forEach((item, i) => {
         const color = vegetationData.find(d => d.name === item).color;
         const columnIndex = Math.floor(i / itemsPerColumn);
@@ -1000,50 +1080,6 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .attr('x', columnIndex * columnWidth + 25)
             .attr('y', rowIndex * 20 + 17)
             .style('font-size', '12px')
-            .text(item);
-    });
-}
-
-// Updated legend creation code using CSS classes
-function createLegend(svg, data, width, height) {
-    // Get unique vegetation types for legend
-    const legendItems = data[0].segments.map(d => d.name);
-    
-    // Calculate legend layout
-    const itemsPerColumn = Math.min(4, legendItems.length);
-    const columnWidth = Math.min(200, width / Math.ceil(legendItems.length / itemsPerColumn));
-    
-    // Create legend group
-    const legend = svg.append('g')
-        .attr('class', 'legend')
-        .attr('transform', `translate(0, ${height + 40})`);
-    
-    // Add legend title
-    legend.append('text')
-        .attr('class', 'legend-title')
-        .attr('x', 0)
-        .attr('y', -5)
-        .text('Vegetation Types:');
-    
-    // Add legend items
-    legendItems.forEach((item, i) => {
-        const color = data[0].segments.find(d => d.name === item).color;
-        const column = Math.floor(i / itemsPerColumn);
-        const row = i % itemsPerColumn;
-        
-        // Add color box
-        legend.append('rect')
-            .attr('x', column * columnWidth)
-            .attr('y', row * 20 + 5)
-            .attr('width', 15)
-            .attr('height', 15)
-            .attr('fill', color);
-        
-        // Add text label
-        legend.append('text')
-            .attr('class', 'legend-item')
-            .attr('x', column * columnWidth + 20)
-            .attr('y', row * 20 + 18)
             .text(item);
     });
 }
