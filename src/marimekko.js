@@ -1,5 +1,5 @@
 /**
- * Rotated Marimekko Chart for Vegetation Fire Impact Visualization
+ * Marimekko Chart for Vegetation Fire Impact Visualization
  * Displays fire severity across different vegetation types in both condensed and expanded views
  */
 
