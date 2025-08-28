@@ -130,11 +130,6 @@ document.addEventListener('DOMContentLoaded', fetchDataFromAPI);
 
 The visualization expects data in the following format:
 
-# Key actions that need to happen when generating this data:
-1. the color needs to match the color on the vegetation map
-2. the severity levels (low/moderate/high) should have a default value with the option to update based on user input
-- currently the description of the severity levels on the visualization are hardcoded, these should be dynamic to read in either the default asigned values or the user's specified levels
-
 
 | Field | Description | Type |
 |-------|-------------|------|
@@ -152,6 +147,12 @@ The visualization expects data in the following format:
 | total_percent | Percentage of total area this vegetation represents | number |
 
 Additional fields in the CSV are for metadata and are not used directly in the visualization.
+
+## Key actions that need to happen when generating this data:
+1. The *color* needs to match the color on the vegetation map
+2. The *severity levels* (low/moderate/high) should have a default value with the option to update based on user input
+- currently the description of the severity levels on the visualization are hardcoded, these should be dynamic to read in either the default asigned values or the user's specified levels
+
 
 ### API Response Example
 
