@@ -155,52 +155,89 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         
         // Add background rectangle
         tooltip.append('rect')
-            .attr('width', 340)
-            .attr('height', 200);
+            .attr('width', 400)  // Increased width from 340 to 400
+            .attr('height', 240); // Increased height for additional text
         
         // Add wrapped vegetation name text and get line count
-        const vegetationNameLines = wrapText(name, 300, 15, 30, 'tooltip-vegetation-name', tooltip);
+        const vegetationNameLines = wrapText(name, 360, 15, 30, 'tooltip-vegetation-name', tooltip);
         
         // Calculate base y-position for percentage based on name height
         const percentYPosition = 30 + (vegetationNameLines * 16) + 40;
         
-        // Add percentage value with 40px space after name
-        tooltip.append('text')
-            .attr('class', 'tooltip-percentage')
-            .attr('x', 15)
-            .attr('y', percentYPosition)
-            .text(`${percent.toFixed(1)}%`);
+        // Find the vegetation data to get total percentage
+        const vegData = vegetationData.find(d => d.name === name);
+        if (vegData && severity !== "total") {
+            // Add total percentage for this vegetation type
+            tooltip.append('text')
+                .attr('class', 'tooltip-percentage')
+                .attr('x', 15)
+                .attr('y', percentYPosition)
+                .text(`${vegData.totalPercent.toFixed(1)}%`);
+                
+            // Add description for total percentage
+            tooltip.append('text')
+                .attr('class', 'tooltip-description')
+                .attr('x', 15)
+                .attr('y', percentYPosition + 25)
+                .text("of total burn area");
+                
+            // Add severity percentage below total percentage
+            tooltip.append('text')
+                .attr('class', 'tooltip-percentage')
+                .attr('x', 15)
+                .attr('y', percentYPosition + 60)
+                .text(`${percent.toFixed(1)}%`);
+        } else {
+            // For "total" severity, just show the percentage
+            tooltip.append('text')
+                .attr('class', 'tooltip-percentage')
+                .attr('x', 15)
+                .attr('y', percentYPosition)
+                .text(`${percent.toFixed(1)}%`);
+        }
         
         // Add wrapped severity description 
         let description;
         if (severity === "total") {
             description = "of total burn area";
         } else {
-            description = `of species burn area considered ${severity} severity`;
+            description = `of vegetation burn area considered ${severity} severity`;
         }
 
-        wrapText(description, 300, 15, percentYPosition + 25, 'tooltip-description', tooltip);
+        // Position the severity description based on whether we're showing both percentages
+        const descriptionYPosition = (vegData && severity !== "total") 
+            ? percentYPosition + 85 
+            : percentYPosition + 25;
+            
+        // Use the wider width value to ensure text stays on one line
+        wrapText(description, 360, 15, descriptionYPosition, 'tooltip-description', tooltip);
         
         // Only add hectare information if it's provided
         if (hectares !== undefined) {
+            // Adjust the y-position based on whether we're showing one or two percentages
+            const hectaresYPosition = (vegData && severity !== "total")
+                ? percentYPosition + 120
+                : percentYPosition + 60;
+                
             // Add hectare value with same styling as percentage
             tooltip.append('text')
                 .attr('class', 'tooltip-percentage')
                 .attr('x', 15)
-                .attr('y', percentYPosition + 60)
+                .attr('y', hectaresYPosition)
                 .text(`${hectares.toFixed(1)}`);
             
             // Add hectare description
             tooltip.append('text')
                 .attr('class', 'tooltip-description')
                 .attr('x', 15)
-                .attr('y', percentYPosition + 85)
+                .attr('y', hectaresYPosition + 25)
                 .text("hectares burned");
         }
         
         // Position tooltip intelligently relative to mouse position
         const tooltipWidth = 300;
-        const tooltipHeight = 200;
+        // Adjust tooltip height to better fit the content, especially for the updated text
+        const tooltipHeight = severity !== "total" && vegData ? 240 : 200;
         const containerWidth = width;
         const containerHeight = height;
         
@@ -285,13 +322,49 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .text(vegetationName);
         
         // Add vegetation overview stats
+
+
         panel.append('p')
             .attr('class', 'panel-text')
             .html(`This vegetation represents <strong>${vegData.totalPercent.toFixed(1)}%</strong> of the total burn area`);
         
+        // Get the severity level from the selected segment and add appropriate stats
+        const selectedSeverity = rect.classList.contains('segment-selected') ? rect.__data__ : null;
+        let severityPercentage;
+        let severityName;
+        
+        if (selectedSeverity) {
+            // Extract severity level from selected segment
+            if (rect.parentNode.classList.contains('high-severity')) {
+                severityName = 'high';
+                severityPercentage = vegData.highPerc;
+            } else if (rect.parentNode.classList.contains('moderate-severity')) {
+                severityName = 'moderate';
+                severityPercentage = vegData.medPerc;
+            } else if (rect.parentNode.classList.contains('low-severity')) {
+                severityName = 'low';
+                severityPercentage = vegData.lowPerc;
+            } else if (rect.parentNode.classList.contains('unburned-severity')) {
+                severityName = 'unburned';
+                severityPercentage = vegData.unburnedPerc;
+            } else {
+                // Default to high severity if we can't determine
+                severityName = 'high';
+                severityPercentage = vegData.highPerc;
+            }
+        } else {
+            // Default to high severity if we can't determine
+            severityName = 'high';
+            severityPercentage = vegData.highPerc;
+        }
+        
         panel.append('p')
             .attr('class', 'panel-text')
-            .html(`Total species area affected: <strong>${vegData.totalHa.toFixed(1)}</strong> hectares`);
+            .html(`<strong>${severityPercentage.toFixed(1)}%</strong> of this vegetation community is considered ${severityName} severity`);
+
+        panel.append('p')
+            .attr('class', 'panel-text')
+            .html(`Total vegetation community area affected: <strong>${vegData.totalHa.toFixed(1)}</strong> hectares`);
         
         //----------------------------------------------------------------------
         // SEVERITY DISTRIBUTION CHART
