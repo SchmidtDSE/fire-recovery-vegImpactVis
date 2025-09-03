@@ -156,7 +156,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         // Add background rectangle
         tooltip.append('rect')
             .attr('width', 400)  // Increased width from 340 to 400
-            .attr('height', 240); // Increased height for additional text
+            .attr('height', 310); // 
         
         // Add wrapped vegetation name text and get line count
         const vegetationNameLines = wrapText(name, 360, 15, 30, 'tooltip-vegetation-name', tooltip);
@@ -231,13 +231,27 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                 .attr('class', 'tooltip-description')
                 .attr('x', 15)
                 .attr('y', hectaresYPosition + 25)
-                .text("hectares burned");
+                .text(severity !== "total" ? `hectares at ${severity} severity` : "hectares burned");
+                
+            // Add total hectares for this vegetation type if available and not in total mode
+            if (vegData && vegData.totalHa && severity !== "total") {
+                tooltip.append('text')
+                    .attr('class', 'tooltip-percentage')
+                    .attr('x', 15)
+                    .attr('y', hectaresYPosition + 55)
+                    .text(`${vegData.totalHa.toFixed(1)}`);
+                    
+                tooltip.append('text')
+                    .attr('class', 'tooltip-description')
+                    .attr('x', 15)
+                    .attr('y', hectaresYPosition + 80)
+                    .text("total hectares in this vegetation community");
+            }
         }
         
         // Position tooltip intelligently relative to mouse position
         const tooltipWidth = 300;
-        // Adjust tooltip height to better fit the content, especially for the updated text
-        const tooltipHeight = severity !== "total" && vegData ? 240 : 200;
+        const tooltipHeight = severity !== "total" && vegData ? 310 : 240;
         const containerWidth = width;
         const containerHeight = height;
         
