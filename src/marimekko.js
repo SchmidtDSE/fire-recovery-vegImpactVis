@@ -321,50 +321,76 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
             .style('font-size', '22px')
             .text(vegetationName);
         
-        // Add vegetation overview stats
-
-
+        // Add "Of total fire" header
+        panel.append('h3')
+            .attr('class', 'panel-section-title')
+            .style('margin-top', '20px')
+            .style('margin-bottom', '10px')
+            .text('Of total fire:');
+            
+        // Add total fire stats
         panel.append('p')
             .attr('class', 'panel-text')
-            .html(`This vegetation represents <strong>${vegData.totalPercent.toFixed(1)}%</strong> of the total burn area`);
+            .html(`<strong>${vegData.totalPercent.toFixed(1)}%</strong> of the total burn area (<strong>${vegData.totalHa.toFixed(1)}</strong> hectares)`);
         
-        // Get the severity level from the selected segment and add appropriate stats
-        const selectedSeverity = rect.classList.contains('segment-selected') ? rect.__data__ : null;
-        let severityPercentage;
-        let severityName;
+        // Determine which severity level was clicked
+        let selectedSeverity = "";
+        let severityPercentage = 0;
+        let severityHectares = 0;
         
-        if (selectedSeverity) {
-            // Extract severity level from selected segment
-            if (rect.parentNode.classList.contains('high-severity')) {
-                severityName = 'high';
-                severityPercentage = vegData.highPerc;
-            } else if (rect.parentNode.classList.contains('moderate-severity')) {
-                severityName = 'moderate';
-                severityPercentage = vegData.medPerc;
-            } else if (rect.parentNode.classList.contains('low-severity')) {
-                severityName = 'low';
-                severityPercentage = vegData.lowPerc;
-            } else if (rect.parentNode.classList.contains('unburned-severity')) {
-                severityName = 'unburned';
-                severityPercentage = vegData.unburnedPerc;
+        // First check for tooltip data (added in our click handlers)
+        if (rect && rect.__tooltipData && rect.__tooltipData.severity) {
+            selectedSeverity = rect.__tooltipData.severity;
+        }
+        // Check which row this rectangle comes from if no tooltip data
+        else if (rect && rect.__data__) {
+            // First try to get data directly from the rect if available
+            if (rect.__data__.severity) {
+                selectedSeverity = rect.__data__.severity.toLowerCase();
             } else {
-                // Default to high severity if we can't determine
-                severityName = 'high';
-                severityPercentage = vegData.highPerc;
+                // If we're in the condensed view, find which row we're in
+                const segments = d3.select(rect.parentNode).selectAll('rect');
+                const index = Array.from(segments.nodes()).indexOf(rect);
+                
+                // Map index to severity (total is index 0, high is 1, etc.)
+                if (index === 0) selectedSeverity = "total";
+                else if (index === 1) selectedSeverity = "high";
+                else if (index === 2) selectedSeverity = "moderate";
+                else if (index === 3) selectedSeverity = "low";
+                else if (index === 4) selectedSeverity = "unburned";
             }
-        } else {
-            // Default to high severity if we can't determine
-            severityName = 'high';
-            severityPercentage = vegData.highPerc;
         }
         
-        panel.append('p')
-            .attr('class', 'panel-text')
-            .html(`<strong>${severityPercentage.toFixed(1)}%</strong> of this vegetation community is considered ${severityName} severity`);
-
-        panel.append('p')
-            .attr('class', 'panel-text')
-            .html(`Total vegetation community area affected: <strong>${vegData.totalHa.toFixed(1)}</strong> hectares`);
+        // Set values based on detected severity
+        if (selectedSeverity === "high" || selectedSeverity === "") {
+            selectedSeverity = "high";
+            severityPercentage = vegData.highPerc;
+            severityHectares = vegData.high_ha;
+        } else if (selectedSeverity === "moderate") {
+            severityPercentage = vegData.medPerc;
+            severityHectares = vegData.moderate_ha;
+        } else if (selectedSeverity === "low") {
+            severityPercentage = vegData.lowPerc;
+            severityHectares = vegData.low_ha;
+        } else if (selectedSeverity === "unburned") {
+            severityPercentage = vegData.unburnedPerc;
+            severityHectares = vegData.unburned_ha;
+        }
+        
+        // Add severity level header and stats
+        if (selectedSeverity !== "total") {
+            // Add "At this severity level" header
+            panel.append('h3')
+                .attr('class', 'panel-section-title')
+                .style('margin-top', '20px')
+                .style('margin-bottom', '10px')
+                .text(`At ${selectedSeverity} severity level:`);
+                
+            // Add severity level stats
+            panel.append('p')
+                .attr('class', 'panel-text')
+                .html(`<strong>${severityPercentage.toFixed(1)}%</strong> of this vegetation community (<strong>${severityHectares.toFixed(1)}</strong> hectares)`);
+        }
         
         //----------------------------------------------------------------------
         // SEVERITY DISTRIBUTION CHART
@@ -381,7 +407,7 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
         // Create section heading
         panel.append('h3')
             .attr('class', 'panel-section-title')
-            .text('Species Severity Distribution');
+            .text('Vegetation Community Severity Distribution');
         
         // Create chart container
         const chartContainer = panel.append('div')
@@ -808,6 +834,10 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                     .attr('stroke-width', 10)
                     .on('click', function(event) {
                         event.stopPropagation();
+                        // Store the severity data for the panel
+                        this.__tooltipData = {
+                            severity: 'total'
+                        };
                         showClickedView(segment.name, this);
                     })
                     .on('mouseover', function(event) {
@@ -879,6 +909,10 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                     .attr('stroke-width', 1)
                     .on('click', function(event) {
                         event.stopPropagation();
+                        // Store the severity data for the panel
+                        this.__tooltipData = {
+                            severity: category.category.toLowerCase()
+                        };
                         showClickedView(segment.name, this);
                     })
                     .on('mouseover', function(event) {
@@ -967,6 +1001,10 @@ function createRotatedMarimekkoChart(csvData, mode = 'condensed') {
                             // Only show panel for opacity 1.0 segments
                             if (subSegment.opacity === 1.0) {
                                 event.stopPropagation();
+                                // Store the severity data for the panel
+                                this.__tooltipData = {
+                                    severity: category.category.toLowerCase()
+                                };
                                 showClickedView(segment.name, this);
                             }
                         })
